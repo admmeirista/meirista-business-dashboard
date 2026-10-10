@@ -1,0 +1,10 @@
+node_modules
+dist
+*.tsbuildinfo
+.env
+# Data Shopee berisi data pembeli — JANGAN pernah di-commit
+*.xlsx
+*.xls
+*.csv
+fixtures/
+backup-*.json
