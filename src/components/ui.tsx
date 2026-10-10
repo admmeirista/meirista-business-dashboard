@@ -187,3 +187,12 @@ export function toast(msg: string, kind: 'ok' | 'err' | 'warn' | '' = '') {
 
 /** Nilai pemeriksaan: hitungan baris ditampilkan sebagai angka, lainnya sebagai Rupiah. */
 export const checkVal = (label: string, v: number | null) => (/baris|jumlah item/i.test(label) ? num(v) : rp(v));
+
+/** Perubahan vs periode sebelumnya. invert = penurunan itu baik (mis. biaya, retur). */
+export function Delta({ now, before, invert, dark }: { now: number | null; before: number | null; invert?: boolean; dark?: boolean }) {
+  if (now === null || before === null || !before) return null;
+  const ch = (now - before) / Math.abs(before);
+  const good = invert ? ch < 0 : ch > 0;
+  const flat = Math.abs(ch) < 0.005;
+  return <span className={`delta ${flat ? '' : good ? 'up' : 'down'}${dark ? ' dk' : ''}`}>{flat ? '≈' : ch > 0 ? '▲' : '▼'} {pct(Math.abs(ch))} <span className="vs">vs periode lalu</span></span>;
+}

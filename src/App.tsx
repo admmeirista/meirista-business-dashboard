@@ -1,51 +1,38 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard, ShoppingBag, Users, MapPin, CreditCard, Undo2, Lightbulb, Receipt, Scale, TrendingUp,
-  Upload, History, Boxes, Sigma, Settings as SettingsIcon, Menu, Lock,
-} from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Users, Undo2, Receipt, Scale, TrendingUp, Upload, Boxes, Settings as SettingsIcon, Menu, Lock } from 'lucide-react';
 import { useData } from './data';
 import Overview from './pages/Overview';
 import Sales from './pages/Sales';
 import Customers from './pages/Customers';
-import Geography from './pages/Geography';
-import Payments from './pages/Payments';
 import Returns from './pages/Returns';
-import Insights from './pages/Insights';
 import Fees from './pages/Fees';
 import Reconciliation from './pages/Reconciliation';
 import Profitability from './pages/Profitability';
 import Import from './pages/Import';
-import ImportHistory from './pages/ImportHistory';
 import Master from './pages/Master';
-import Formulas from './pages/Formulas';
 import Settings from './pages/Settings';
 
 const NAV = [
-  { sec: 'ANALITIK', items: [
-    { to: '/', label: 'Ringkasan Eksekutif', icon: LayoutDashboard },
+  { sec: 'ANALISIS', items: [
+    { to: '/', label: 'Ringkasan', icon: LayoutDashboard },
     { to: '/sales', label: 'Penjualan', icon: ShoppingBag },
-    { to: '/customers', label: 'Pelanggan & RFM', icon: Users },
-    { to: '/geo', label: 'Geografi', icon: MapPin },
-    { to: '/payments', label: 'Metode Pembayaran', icon: CreditCard },
+    { to: '/customers', label: 'Pelanggan', icon: Users },
     { to: '/returns', label: 'Pengembalian', icon: Undo2 },
-    { to: '/insights', label: 'Insight & Anomali', icon: Lightbulb },
   ] },
   { sec: 'KEUANGAN', items: [
-    { to: '/fees', label: 'Biaya Marketplace', icon: Receipt },
+    { to: '/finance', label: 'Dana & Biaya Shopee', icon: Receipt },
+    { to: '/profit', label: 'Laba Produk', icon: TrendingUp },
     { to: '/recon', label: 'Rekonsiliasi', icon: Scale },
-    { to: '/profit', label: 'Profitabilitas', icon: TrendingUp },
   ] },
   { sec: 'DATA', items: [
-    { to: '/import', label: 'Import Laporan', icon: Upload },
-    { to: '/history', label: 'Riwayat Import', icon: History },
-    { to: '/master', label: 'Master Produk & HPP', icon: Boxes },
-    { to: '/formulas', label: 'Rumus & Validasi', icon: Sigma },
-    { to: '/settings', label: 'Pengaturan & Backup', icon: SettingsIcon },
+    { to: '/import', label: 'Import & Backup', icon: Upload },
+    { to: '/master', label: 'Produk & HPP', icon: Boxes },
+    { to: '/settings', label: 'Pengaturan', icon: SettingsIcon },
   ] },
 ];
 
-const DATA_FREE = ['/import', '/settings', '/formulas', '/master', '/history'];
+const DATA_FREE = ['/import', '/settings', '/master'];
 
 function Brand() {
   return (
@@ -61,6 +48,7 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [loc.pathname]);
+  const badChecks = ix.ds.checks.filter((c) => c.ok === false).length;
   const empty = ready && !ix.ds.orders.length && !ix.ds.income.length && !ix.ds.returns.length;
 
   return (
@@ -73,7 +61,7 @@ export default function App() {
             <div className="sec">{s.sec}</div>
             {s.items.map((n) => (
               <NavLink key={n.to} to={n.to} end className={({ isActive }) => `nv${isActive ? ' on' : ''}`}>
-                <n.icon className="ic" />{n.label}
+                <n.icon className="ic" />{n.label}{n.to === '/recon' && badChecks > 0 && <span className="dotn">{badChecks}</span>}
               </NavLink>
             ))}
           </div>
@@ -92,17 +80,13 @@ export default function App() {
               <Route path="/" element={<Overview />} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/customers" element={<Customers />} />
-              <Route path="/geo" element={<Geography />} />
-              <Route path="/payments" element={<Payments />} />
               <Route path="/returns" element={<Returns />} />
-              <Route path="/insights" element={<Insights />} />
-              <Route path="/fees" element={<Fees />} />
-              <Route path="/recon" element={<Reconciliation />} />
+              <Route path="/finance" element={<Fees />} />
+              <Route path="/fees" element={<Navigate to="/finance" replace />} />
               <Route path="/profit" element={<Profitability />} />
+              <Route path="/recon" element={<Reconciliation />} />
               <Route path="/import" element={<Import />} />
-              <Route path="/history" element={<ImportHistory />} />
               <Route path="/master" element={<Master />} />
-              <Route path="/formulas" element={<Formulas />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

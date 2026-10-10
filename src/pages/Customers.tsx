@@ -1,74 +1,68 @@
 import { useMemo, useState } from 'react';
-import { Users, Repeat, UserPlus, Crown } from 'lucide-react';
+import { Users, Repeat, UserPlus } from 'lucide-react';
 import { useData } from '../data';
 import { FilterBar } from '../components/FilterBar';
 import { CohortTable } from '../components/charts';
-import { DataTable, Kpi, PageHead, Panel, maskName, num, pct, rp, rpShort, type Col } from '../components/ui';
+import { DataTable, Delta, Kpi, PageHead, Panel, maskName, num, pct, rp, rpShort, type Col } from '../components/ui';
 import { retention, rfm, SEGMENTS, type RfmRow } from '../lib/metrics/analytics';
 
-const SEG_DESC: Record<string, string> = {
-  Champions: 'Baru membeli, sering, nilai tinggi',
-  Loyal: 'Rutin membeli',
-  Potensial: 'Baru membeli lagi, frekuensi belum tinggi',
-  Baru: 'Pembelian pertama, baru-baru ini',
-  'Perlu perhatian': 'Aktivitas menurun',
-  Berisiko: 'Dulu sering, lama tidak membeli',
-  Hibernasi: 'Sekali beli, sudah lama',
+const SEG: Record<string, { desc: string; action: string }> = {
+  Champions: { desc: 'Baru beli, sering, belanja besar', action: 'Pertahankan — beri prioritas & bonus' },
+  Loyal: { desc: 'Rutin membeli', action: 'Tawarkan paket / bundling' },
+  Potensial: { desc: 'Baru beli lagi', action: 'Dorong pembelian berikutnya' },
+  Baru: { desc: 'Pembelian pertama baru-baru ini', action: 'Pastikan pengalaman pertama baik' },
+  'Perlu perhatian': { desc: 'Aktivitas mulai turun', action: 'Kirim voucher pengingat' },
+  Berisiko: { desc: 'Dulu sering, kini lama tidak beli', action: 'Ajak kembali dengan promo' },
+  Hibernasi: { desc: 'Sekali beli, sudah lama', action: 'Prioritas rendah' },
 };
 
 export default function Customers() {
-  const { ix, filter, mask } = useData();
+  const { ix, filter, prev, mask } = useData();
   const [seg, setSeg] = useState<string | null>(null);
   const rows = useMemo(() => rfm(ix, filter), [ix, filter]);
   const ret = useMemo(() => retention(ix, filter), [ix, filter]);
-  const segs = SEGMENTS.map((s) => ({ s, n: rows.filter((r) => r.segment === s).length, m: rows.filter((r) => r.segment === s).reduce((t, r) => t + r.monetary, 0) }));
+  const retPrev = useMemo(() => retention(ix, prev), [ix, prev]);
+  const allMonths = useMemo(() => new Set(ix.ds.orders.map((o) => o.completedAt?.slice(0, 7)).filter(Boolean)).size, [ix]);
+  const segs = SEGMENTS.map((s) => { const r = rows.filter((x) => x.segment === s); return { s, n: r.length, m: r.reduce((t, x) => t + x.monetary, 0) }; });
   const view = seg ? rows.filter((r) => r.segment === seg) : rows;
   const newB = ret.monthly.reduce((t, m) => t + m.newBuyers, 0);
 
   const cols: Col<RfmRow>[] = [
-    { key: 'buyer', label: 'Pembeli', value: (r) => maskName(r.buyer, mask), render: (r) => <span className="mono">{maskName(r.buyer, mask)}</span> },
-    { key: 'seg', label: 'Segmen', value: (r) => r.segment, render: (r) => <span className={`tag ${r.segment === 'Champions' || r.segment === 'Loyal' ? 'ok' : r.segment === 'Berisiko' || r.segment === 'Hibernasi' ? 'warn' : 'info'}`}>{r.segment}</span> },
-    { key: 'rfm', label: 'R-F-M', value: (r) => r.r * 100 + r.f * 10 + r.m, render: (r) => <span className="mono">{r.r}-{r.f}-{r.m}</span> },
-    { key: 'rec', label: 'Hari sejak beli', num: true, value: (r) => r.recencyDays, render: (r) => num(r.recencyDays) },
-    { key: 'freq', label: 'Pesanan', num: true, value: (r) => r.frequency, render: (r) => num(r.frequency) },
-    { key: 'mon', label: 'GMV', num: true, value: (r) => r.monetary, render: (r) => rp(r.monetary) },
-    { key: 'first', label: 'Pertama', value: (r) => r.first },
-    { key: 'last', label: 'Terakhir', value: (r) => r.last },
+    { key: 'b', label: 'Pembeli', value: (r) => maskName(r.buyer, mask), render: (r) => <span className="mono">{maskName(r.buyer, mask)}</span> },
+    { key: 's', label: 'Segmen', value: (r) => r.segment, render: (r) => <span className={`tag ${r.segment === 'Champions' || r.segment === 'Loyal' ? 'ok' : r.segment === 'Berisiko' ? 'warn' : ''}`}>{r.segment}</span> },
+    { key: 'f', label: 'Pesanan', num: true, value: (r) => r.frequency, render: (r) => num(r.frequency) },
+    { key: 'm', label: 'Total belanja', num: true, value: (r) => r.monetary, render: (r) => rp(r.monetary) },
+    { key: 'l', label: 'Terakhir beli', value: (r) => r.last, render: (r) => `${r.last} (${r.recencyDays} hari lalu)` },
   ];
 
   return (
     <>
-      <PageHead eyebrow="Analitik" title="Pelanggan, Retensi & RFM" />
+      <PageHead eyebrow="Pelanggan" title="Siapa pembeli kita?" />
       <FilterBar />
       <div className="kpis">
-        <Kpi dark icon={<Users className="ic" />} label="Pembeli unik" value={num(ret.buyers)} sub="Username pada rentang" />
-        <Kpi icon={<Repeat className="ic" />} label="Repeat buyer" value={pct(ret.repeatRate)} sub={`${num(ret.repeatBuyers)} pembeli > 1 pesanan`} formula="Pembeli dengan ≥ 2 pesanan pada rentang ÷ pembeli unik." />
-        <Kpi icon={<UserPlus className="ic" />} label="Pembeli baru" value={num(newB)} sub="Pesanan pertama di data yang diimport" formula="Pembeli baru = bulan pesanan pertamanya (di seluruh data yang diimport) sama dengan bulan pesanan. Riwayat sebelum data pertama tidak diketahui." />
-        <Kpi icon={<Crown className="ic" />} label="Champions + Loyal" value={num(segs[0].n + segs[1].n)} sub={`${rpShort(segs[0].m + segs[1].m)} GMV`} />
+        <Kpi dark icon={<Users className="ic" />} label="Pembeli" value={num(ret.buyers)} sub={<Delta dark now={ret.buyers} before={retPrev.buyers || null} />} />
+        <Kpi icon={<Repeat className="ic" />} label="Membeli lagi" value={pct(ret.repeatRate)} sub={<div className="hint">{num(ret.repeatBuyers)} pembeli beli ≥ 2× di periode ini</div>} formula="Pembeli dengan ≥ 2 pesanan pada periode ÷ jumlah pembeli." />
+        <Kpi icon={<UserPlus className="ic" />} label="Pembeli baru" value={num(newB)} sub={<div className="hint">{pct(newB / (ret.buyers || 1))} dari pembeli periode ini</div>} formula="Pembeli yang pesanan pertamanya (di seluruh data yang diimport) jatuh di periode ini. Riwayat sebelum data pertama tidak diketahui." />
       </div>
-      <div className="g2">
-        <Panel title="Pembeli baru vs kembali per bulan">
-          <DataTable rows={ret.monthly} pageSize={24} cols={[
-            { key: 'm', label: 'Bulan', value: (r) => r.month },
-            { key: 'n', label: 'Baru', num: true, value: (r) => r.newBuyers, render: (r) => num(r.newBuyers) },
-            { key: 'r', label: 'Kembali', num: true, value: (r) => r.returning, render: (r) => num(r.returning) },
-            { key: 'p', label: '% kembali', num: true, value: (r) => r.returning / ((r.newBuyers + r.returning) || 1), render: (r) => pct(r.returning / ((r.newBuyers + r.returning) || 1)) },
-            { key: 'o', label: 'Pesanan', num: true, value: (r) => r.orders, render: (r) => num(r.orders) },
-          ]} />
-        </Panel>
-        <Panel title="Kohort retensi" sub="% pembeli bulan pertama yang membeli lagi di bulan ke-n">
-          <CohortTable rows={ret.cohortRows} />
-        </Panel>
-      </div>
-      <div className="sect">Segmen RFM <span className="muted" style={{ fontWeight: 600, fontSize: 12.5 }}>— skor 1–5 per kuintil; klik untuk memfilter</span></div>
+      <div className="sect" style={{ marginTop: 6 }}>Kelompok pembeli <span className="muted" style={{ fontWeight: 600, fontSize: 12.5 }}>— klik untuk melihat daftarnya</span></div>
       <div className="seg-grid">
-        {segs.map((x) => (
+        {segs.filter((x) => x.n).map((x) => (
           <button key={x.s} className={`seg${seg === x.s ? ' on' : ''}`} onClick={() => setSeg(seg === x.s ? null : x.s)}>
-            <div className="l">{x.s}</div><div className="n">{num(x.n)}</div><div className="muted" style={{ fontSize: 11.5 }}>{SEG_DESC[x.s]}</div>
+            <div className="l">{x.s}</div><div className="n">{num(x.n)}</div>
+            <div className="muted" style={{ fontSize: 11.5 }}>{SEG[x.s].desc} · {rpShort(x.m)}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--acc-ink)', marginTop: 4 }}>{SEG[x.s].action}</div>
           </button>
         ))}
       </div>
-      <DataTable rows={view} cols={cols} initialSort={{ key: 'mon', dir: -1 }} csvName={`rfm-${filter.from}-${filter.to}`} />
+      <DataTable rows={view} cols={cols} pageSize={25} initialSort={{ key: 'm', dir: -1 }} csvName={`pelanggan-${filter.from}-${filter.to}`} />
+      {allMonths >= 3 && (
+        <>
+          <div style={{ height: 14 }} />
+          <Panel title="Retensi per bulan pertama beli" sub="% pembeli yang kembali membeli n bulan kemudian">
+            <CohortTable rows={ret.cohortRows} />
+          </Panel>
+        </>
+      )}
     </>
   );
 }

@@ -7,7 +7,9 @@ export interface Insight { level: 'ok' | 'info' | 'warn' | 'err'; title: string;
 const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / (a.length || 1);
 const std = (a: number[]) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))); };
 const pct = (v: number | null) => (v === null ? '–' : `${(v * 100).toFixed(1)}%`);
-const rp = (v: number) => 'Rp ' + Math.round(v).toLocaleString('id-ID');
+const rp = (v: number) => { const a = Math.abs(v); const t = a >= 1e9 ? (a / 1e9).toFixed(1) + ' M' : a >= 1e6 ? (a / 1e6).toFixed(1) + ' jt' : a >= 1e3 ? Math.round(a / 1e3) + ' rb' : String(Math.round(a)); return (v < 0 ? '−' : '') + 'Rp ' + t.replace('.', ','); };
+/** Nama produk ringkas: buang awalan [ 6 PCS ] dan potong panjangnya. */
+const nm = (s: string) => { const x = s.replace(/^\[[^\]]*\]\s*/, '').split('/')[0].trim(); return x.length > 42 ? x.slice(0, 40) + '…' : x; };
 
 /** Membagi rentang menjadi dua paruh yang sama panjang (untuk perbandingan periode). */
 function halves(f: Filter): [Filter, Filter] {
@@ -27,10 +29,12 @@ export function insights(ix: Index, f: Filter): Insight[] {
   const days = s.daily.filter((d) => d.orders > 0);
   if (days.length >= 7) {
     const g = days.map((d) => d.gmv), m = mean(g), sd = std(g);
-    for (const d of days) {
+    days.forEach((d, i) => {
       const z = sd ? (d.gmv - m) / sd : 0;
-      if (Math.abs(z) >= 2) out.push({ level: z > 0 ? 'info' : 'warn', title: `Penjualan ${z > 0 ? 'melonjak' : 'anjlok'} pada ${d.d}`, detail: `GMV ${rp(d.gmv)} vs rata-rata harian ${rp(m)} (z = ${z.toFixed(1)}). ${d.orders} pesanan.`, metric: 'z-score GMV harian' });
-    }
+      // Penurunan di awal/akhir rentang biasanya karena cakupan export, bukan penjualan yang turun.
+      const edge = i < 5 || i >= days.length - 5;
+      if (z >= 2 || (z <= -2 && !edge)) out.push({ level: z > 0 ? 'info' : 'warn', title: `Omzet ${z > 0 ? 'melonjak' : 'turun tajam'} pada ${new Date(d.d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}`, detail: `${rp(d.gmv)} vs rata-rata ${rp(m)}/hari (${d.orders} pesanan).`, metric: 'z-score omzet harian' });
+    });
   }
 
   // 2. Produk tumbuh/turun paling tajam (paruh kedua vs paruh pertama rentang).
@@ -39,12 +43,12 @@ export function insights(ix: Index, f: Filter): Insight[] {
   const b = salesBy(ix, h2, 'product');
   const moves = b.map((r) => ({ r, prev: a.get(r.key)?.gmv ?? 0 })).filter((x) => x.prev > 0 && x.r.gmv + x.prev > s.gmv * 0.01)
     .map((x) => ({ ...x, ch: (x.r.gmv - x.prev) / x.prev })).sort((p, q) => q.ch - p.ch);
-  const fmtMove = (x: { r: DimRow; prev: number; ch: number }) => `${x.r.label}: ${rp(x.prev)} → ${rp(x.r.gmv)} (${x.ch > 0 ? '+' : ''}${(x.ch * 100).toFixed(0)}%)`;
+  const fmtMove = (x: { r: DimRow; prev: number; ch: number }) => `${nm(x.r.label)} (${x.ch > 0 ? '+' : ''}${(x.ch * 100).toFixed(0)}%)`;
   if (moves.length) {
     const up = moves.slice(0, 3).filter((x) => x.ch > 0.2);
     const down = moves.slice(-3).reverse().filter((x) => x.ch < -0.2);
-    if (up.length) out.push({ level: 'ok', title: 'Produk dengan pertumbuhan tertinggi', detail: up.map(fmtMove).join(' · '), metric: `GMV ${h2.from}–${h2.to} vs ${h1.from}–${h1.to}` });
-    if (down.length) out.push({ level: 'warn', title: 'Produk dengan penurunan terbesar', detail: down.map(fmtMove).join(' · '), metric: `GMV ${h2.from}–${h2.to} vs ${h1.from}–${h1.to}` });
+    if (up.length) out.push({ level: 'ok', title: 'Produk yang sedang naik', detail: up.map(fmtMove).join(' · '), metric: 'paruh kedua vs paruh pertama periode' });
+    if (down.length) out.push({ level: 'warn', title: 'Produk yang sedang turun', detail: down.map(fmtMove).join(' · '), metric: 'paruh kedua vs paruh pertama periode' });
   }
 
   // 3. Konsentrasi: porsi 5 produk teratas.

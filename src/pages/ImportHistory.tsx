@@ -4,9 +4,9 @@ import { useData } from '../data';
 import { db, type StoredRejected } from '../lib/db';
 import { deleteBatch, kindLabel } from '../lib/importer';
 import type { ImportBatch, RawRow } from '../lib/types';
-import { DataTable, PageHead, num, toast } from '../components/ui';
+import { DataTable, num, toast } from '../components/ui';
 
-export default function ImportHistory() {
+export function ImportHistoryPanel() {
   const { ix, reload } = useData();
   const [open, setOpen] = useState<ImportBatch | null>(null);
   const del = async (b: ImportBatch) => {
@@ -17,7 +17,6 @@ export default function ImportHistory() {
   };
   return (
     <>
-      <PageHead eyebrow="Data" title="Riwayat Import & Log Kesalahan" />
       <DataTable rows={ix.ds.batches} empty="Belum ada import." cols={[
         { key: 'id', label: '#', value: (b) => b.id ?? 0, num: true },
         { key: 'w', label: 'Waktu', value: (b) => b.importedAt, render: (b) => new Date(b.importedAt).toLocaleString('id-ID') },

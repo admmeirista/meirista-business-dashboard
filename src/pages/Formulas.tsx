@@ -1,6 +1,6 @@
 import { useData } from '../data';
 import { Link } from 'react-router-dom';
-import { PageHead, Panel, num } from '../components/ui';
+import { Panel, num } from '../components/ui';
 
 const METRICS: { area: string; items: { name: string; formula: string; source: string; note?: string }[] }[] = [
   { area: 'Penjualan', items: [
@@ -32,23 +32,22 @@ const METRICS: { area: string; items: { name: string; formula: string; source: s
 ];
 
 const BASES = [
-  ['Pesanan dibuat', 'Waktu Pesanan Dibuat (Pesanan Selesai) / Waktu Pesanan Dibuat (Penghasilan)'],
+  ['Pesanan selesai (default omzet)', 'Waktu Pesanan Selesai — dipakai untuk omzet, pesanan, pelanggan, retur, laba'],
+  ['Pesanan dibuat', 'Waktu Pesanan Dibuat (opsional, ubah di Pengaturan → Umum)'],
   ['Pembayaran', 'Waktu Pembayaran Dilakukan — record penghasilan dicocokkan via No. Pesanan'],
-  ['Pesanan selesai', 'Waktu Pesanan Selesai — record penghasilan dicocokkan via No. Pesanan'],
-  ['Dana dilepas', 'Tanggal Dana Dilepaskan (Penghasilan); untuk pesanan = tanggal pelepasan pertamanya; penyesuaian = Tanggal Penyesuaian Dibuat'],
+  ['Dana dilepas', 'Tanggal Dana Dilepaskan — dipakai untuk Dana diterima, biaya Shopee, dan penyesuaian (Tanggal Penyesuaian Dibuat)'],
 ];
 
-export default function Formulas() {
+export function FormulasPanel() {
   const { ix } = useData();
   const ok = ix.ds.checks.filter((c) => c.ok === true).length;
   const bad = ix.ds.checks.filter((c) => c.ok === false).length;
   return (
     <>
-      <PageHead eyebrow="Data" title="Rumus Perhitungan & Validasi" />
       <div className={bad ? 'err-box' : ix.ds.checks.length ? 'ok-box' : 'info-box'} style={{ marginBottom: 16 }}>
         {ix.ds.checks.length ? <>Validasi import: <b>{num(ok)}</b> total cocok dengan laporan Shopee, <b>{num(bad)}</b> selisih. <Link to="/recon">Lihat rincian</Link></> : 'Belum ada import untuk divalidasi.'}
       </div>
-      <Panel title="Basis tanggal pelaporan" sub="Dipilih di bar filter setiap halaman">
+      <Panel title="Basis tanggal pelaporan" sub="Tanggal yang dipakai tiap angka">
         <div className="tablewrap flat"><table className="t"><tbody>{BASES.map(([b, d]) => <tr key={b}><td style={{ fontWeight: 800, width: 180 }}>{b}</td><td>{d}</td></tr>)}</tbody></table></div>
         <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Sistem tidak mengasumsikan bulan dibuat = bulan selesai = bulan dana dilepas = bulan refund. Semua laporan dihubungkan dengan <b>No. Pesanan</b>, lintas periode.</p>
       </Panel>

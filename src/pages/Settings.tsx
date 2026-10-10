@@ -1,100 +1,110 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Upload, Trash2, HardDrive, EyeOff } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Download, Upload, Trash2, EyeOff, ExternalLink } from 'lucide-react';
 import { useData } from '../data';
-import { db, AUDIT_TABLES, DATA_TABLES, MASTER_TABLES } from '../lib/db';
-import { PageHead, Panel, downloadBlob, num, toast } from '../components/ui';
+import { db } from '../lib/db';
+import { backupFileName, createBackup, restoreBackup } from '../lib/backup';
+import { driveSettings, disconnect } from '../lib/drive';
+import { BASIS_LABEL, type DateBasis } from '../lib/metrics/dataset';
+import { DriveBackupCard } from '../components/DriveBackup';
+import { PageHead, Panel, Tabs, downloadBlob, num, toast } from '../components/ui';
+import { FormulasPanel } from './Formulas';
 
-const ALL_TABLES = [...DATA_TABLES, ...MASTER_TABLES, ...AUDIT_TABLES];
-type TableName = (typeof ALL_TABLES)[number];
+type Tab = 'general' | 'backup' | 'formulas';
 
 export default function Settings() {
-  const { mask, setMask, reload, ix } = useData();
-  const [usage, setUsage] = useState<string>('');
-  const [persisted, setPersisted] = useState<boolean | null>(null);
-  const [withRaw, setWithRaw] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
+  const [params, setParams] = useSearchParams();
+  const tab = (params.get('tab') as Tab) || 'general';
+  return (
+    <>
+      <PageHead eyebrow="Data" title="Pengaturan" />
+      <Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={[{ key: 'general', label: 'Umum' }, { key: 'backup', label: 'Backup & Google Drive' }, { key: 'formulas', label: 'Cara perhitungan' }]} />
+      {tab === 'general' && <General />}
+      {tab === 'backup' && <Backup />}
+      {tab === 'formulas' && <FormulasPanel />}
+    </>
+  );
+}
 
+function General() {
+  const { mask, setMask, basis, setBasis, reload, ix } = useData();
+  const [usage, setUsage] = useState('');
   useEffect(() => {
-    void (async () => {
-      try {
-        const e = await navigator.storage?.estimate?.();
-        if (e?.usage !== undefined) setUsage(`${(e.usage / 1024 / 1024).toFixed(1)} MB dipakai dari kuota ±${((e.quota ?? 0) / 1024 / 1024 / 1024).toFixed(1)} GB`);
-        setPersisted((await navigator.storage?.persisted?.()) ?? null);
-      } catch { /* tidak didukung */ }
-    })();
+    navigator.storage?.estimate?.().then((e) => e.usage !== undefined && setUsage(`${(e.usage / 1048576).toFixed(1)} MB`)).catch(() => {});
   }, [ix]);
-
-  const backup = async () => {
-    setBusy(true);
-    try {
-      const out: Record<string, unknown[]> = {};
-      for (const t of ALL_TABLES) if (withRaw || t !== 'raw') out[t] = await (db() as unknown as Record<TableName, { toArray(): Promise<unknown[]> }>)[t].toArray();
-      const blob = new Blob([JSON.stringify({ app: 'meirista-bi', version: 1, exportedAt: new Date().toISOString(), tables: out })], { type: 'application/json' });
-      downloadBlob(`backup-meirista-bi-${new Date().toISOString().slice(0, 10)}.json`, blob);
-    } finally { setBusy(false); }
-  };
-
-  const restore = async (f: File) => {
-    if (!confirm('Pulihkan backup? Seluruh data di browser ini akan DIGANTI dengan isi file backup.')) return;
-    setBusy(true);
-    try {
-      const j = JSON.parse(await f.text());
-      if (j.app !== 'meirista-bi' || !j.tables) throw new Error('Bukan file backup Meirista BI.');
-      const d = db();
-      await d.transaction('rw', d.tables, async () => {
-        for (const t of ALL_TABLES) {
-          const tbl = (d as unknown as Record<TableName, { clear(): Promise<void>; bulkPut(r: unknown[]): Promise<unknown> }>)[t];
-          await tbl.clear();
-          if (Array.isArray(j.tables[t])) await tbl.bulkPut(j.tables[t]);
-        }
-      });
-      await reload();
-      toast('Backup dipulihkan', 'ok');
-    } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
-  };
-
   const reset = async () => {
-    const v = prompt('Ketik HAPUS untuk menghapus SEMUA data laporan, master produk, HPP, dan riwayat import di browser ini.');
-    if (v !== 'HAPUS') return;
+    if (prompt('Ketik HAPUS untuk menghapus SEMUA data di browser ini (laporan, master produk, HPP, riwayat).') !== 'HAPUS') return;
     const d = db();
     await d.transaction('rw', d.tables, async () => { for (const t of d.tables) await t.clear(); });
     await reload();
     toast('Semua data dihapus', 'ok');
   };
-
   return (
-    <>
-      <PageHead eyebrow="Data" title="Pengaturan & Backup" />
-      <div className="g2">
-        <Panel title="Privasi tampilan">
-          <label className="row" style={{ fontWeight: 600 }}><input type="checkbox" checked={mask} onChange={(e) => setMask(e.target.checked)} /><EyeOff className="ic" />Samarkan username pembeli di layar & export CSV</label>
-          <p className="muted" style={{ fontSize: 13 }}>Alamat, nomor telepon, dan nama penerima tidak pernah disimpan. Username tetap disimpan karena dibutuhkan untuk analisis retensi & RFM.</p>
-        </Panel>
-        <Panel title="Penyimpanan lokal" sub={usage || 'Ukuran tidak tersedia'}>
-          <div className="kv">
-            <div>Pesanan / item</div><div>{num(ix.ds.orders.length)} / {num(ix.ds.items.length)}</div>
-            <div>Record penghasilan</div><div>{num(ix.ds.income.length)}</div>
-            <div>Pengembalian</div><div>{num(ix.ds.returns.length)}</div>
-            <div>Penyimpanan permanen</div><div>{persisted === null ? '–' : persisted ? 'Ya' : <button className="link-btn" onClick={async () => setPersisted(await navigator.storage.persist())}>Minta izin agar browser tidak menghapus data</button>}</div>
-          </div>
-          <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}><HardDrive className="ic" style={{ width: 14 }} /> Data hanya ada di browser & perangkat ini. Membersihkan data situs akan menghapusnya — buat backup secara berkala.</p>
-        </Panel>
-      </div>
-      <Panel title="Backup & pemulihan" sub="Pindahkan data ke komputer lain atau simpan cadangan">
-        <div className="row">
-          <button className={`btn pri${busy ? ' busy' : ''}`} onClick={backup}><Download className="ic" />Unduh backup (.json)</button>
-          <label className="row" style={{ fontSize: 13, fontWeight: 600 }}><input type="checkbox" checked={withRaw} onChange={(e) => setWithRaw(e.target.checked)} />Sertakan baris audit asli (file lebih besar)</label>
-          <span className="grow" />
-          <button className="btn" onClick={() => input.current?.click()}><Upload className="ic" />Pulihkan dari backup</button>
-          <input ref={input} type="file" accept=".json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void restore(f); }} />
+    <div className="stack">
+      <Panel title="Tanggal untuk menghitung omzet" sub="Dipakai di Ringkasan, Penjualan, Pelanggan, Pengembalian, dan Laba">
+        <div className="chips">
+          {(['completed', 'created', 'paid'] as DateBasis[]).map((b) => <button key={b} className={basis === b ? 'on' : ''} onClick={() => setBasis(b)}>{BASIS_LABEL[b]}{b === 'completed' ? ' (disarankan)' : ''}</button>)}
         </div>
-        <div className="warn-box">File backup berisi data transaksi & username pembeli. Simpan di tempat aman dan jangan diunggah ke repositori GitHub.</div>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Dana diterima & biaya Shopee selalu memakai tanggal dana dilepas.</p>
       </Panel>
-      <div style={{ height: 14 }} />
-      <Panel title="Zona berbahaya">
+      <Panel title="Privasi">
+        <label className="row" style={{ fontWeight: 600 }}><input type="checkbox" checked={mask} onChange={(e) => setMask(e.target.checked)} /><EyeOff className="ic" />Samarkan username pembeli di layar & file CSV</label>
+      </Panel>
+      <Panel title="Data di browser ini" sub={usage ? `${usage} terpakai` : undefined}>
+        <div className="kv" style={{ marginBottom: 14 }}>
+          <div>Pesanan</div><div>{num(ix.ds.orders.length)}</div>
+          <div>Record penghasilan</div><div>{num(ix.ds.income.length)}</div>
+          <div>Pengembalian</div><div>{num(ix.ds.returns.length)}</div>
+        </div>
         <button className="btn err" onClick={reset}><Trash2 className="ic" />Hapus semua data</button>
       </Panel>
-    </>
+    </div>
+  );
+}
+
+function Backup() {
+  const { reload } = useData();
+  const [cid, setCid] = useState(driveSettings.clientId());
+  const [auto, setAuto] = useState(driveSettings.auto());
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const origin = location.origin;
+
+  const local = async () => { setBusy(true); try { downloadBlob(backupFileName(), (await createBackup(db())).blob); } finally { setBusy(false); } };
+  const restoreFile = async (f: File) => {
+    if (!confirm('Pulihkan dari file ini? Seluruh data di browser ini akan DIGANTI.')) return;
+    try { const m = await restoreBackup(db(), f); await reload(); toast(`Dipulihkan: ${m.counts.orders ?? 0} pesanan`, 'ok'); } catch (e) { toast((e as Error).message, 'err'); }
+  };
+
+  return (
+    <div className="g2" style={{ alignItems: 'start' }}>
+      <div className="stack">
+        <DriveBackupCard />
+        <Panel title="Backup manual (file)">
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Satu file .json.gz berisi seluruh data, master produk, HPP, riwayat, dan baris audit — cukup untuk memulihkan dashboard walau file Excel hilang.</p>
+          <div className="row">
+            <button className={`btn${busy ? ' busy' : ''}`} onClick={local}><Download className="ic" />Unduh backup</button>
+            <button className="btn" onClick={() => input.current?.click()}><Upload className="ic" />Pulihkan dari file</button>
+            <input ref={input} type="file" accept=".gz,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void restoreFile(f); }} />
+          </div>
+        </Panel>
+      </div>
+      <Panel title="Hubungkan Google Drive (sekali saja)" sub="Backup masuk ke folder “Meirista BI Backup” di Drive akun Anda">
+        <ol style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 13, lineHeight: 1.8, color: '#4e5751' }}>
+          <li>Buka <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noreferrer">Google Cloud Console <ExternalLink className="ic" style={{ width: 12 }} /></a> dengan akun pemilik Drive → buat project → <b>Enable</b> Google Drive API.</li>
+          <li>OAuth consent screen → External → isi nama aplikasi → tambahkan email Anda sebagai <b>Test user</b>.</li>
+          <li>Credentials → Create credentials → <b>OAuth client ID</b> → Web application → Authorized JavaScript origins: <code className="mono">{origin}</code></li>
+          <li>Salin <b>Client ID</b> ke kolom di bawah, simpan, lalu klik <b>Hubungkan</b>.</li>
+        </ol>
+        <label className="f">Google OAuth Client ID</label>
+        <input className="in full mono" placeholder="xxxxxxxx.apps.googleusercontent.com" value={cid} onChange={(e) => setCid(e.target.value)} />
+        <label className="row" style={{ fontWeight: 600, fontSize: 13, marginTop: 12 }}><input type="checkbox" checked={auto} onChange={(e) => { setAuto(e.target.checked); driveSettings.setAuto(e.target.checked); }} />Backup otomatis setiap selesai import</label>
+        <div className="row" style={{ marginTop: 14 }}>
+          <button className="btn pri" onClick={() => { if (cid && !/\.apps\.googleusercontent\.com$/.test(cid.trim())) return toast('Client ID tidak valid', 'warn'); driveSettings.setClientId(cid); toast('Tersimpan', 'ok'); location.reload(); }}>Simpan</button>
+          {driveSettings.clientId() && <button className="btn ghost" onClick={() => { disconnect(); toast('Sesi Google Drive diputus', 'ok'); }}>Putuskan sesi</button>}
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>Izin yang diminta hanya <span className="mono">drive.file</span>: aplikasi hanya bisa membaca file backup yang dibuatnya sendiri, bukan isi Drive lainnya.</p>
+      </Panel>
+    </div>
   );
 }

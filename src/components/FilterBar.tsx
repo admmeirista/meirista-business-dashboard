@@ -1,35 +1,37 @@
+import { useState } from 'react';
+import { CalendarDays } from 'lucide-react';
 import { useData, monthRange } from '../data';
-import { BASIS_LABEL, type DateBasis } from '../lib/metrics/dataset';
-import { Info } from './ui';
+import { BASIS_LABEL } from '../lib/metrics/dataset';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 export const monthLabel = (m: string) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+const short = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** Filter global: basis tanggal + rentang. Satu baris di atas semua grafik. */
-export function FilterBar({ basisLocked, hideBasis, note }: { basisLocked?: DateBasis; hideBasis?: boolean; note?: string }) {
-  const { filter, setFilter, months } = useData();
-  const basis = basisLocked ?? filter.basis;
-  const activeMonth = months.find((m) => { const r = monthRange(m); return r.from === filter.from && r.to === filter.to; });
+/** Pemilih periode sederhana: pilih bulan, atau rentang tanggal sendiri. */
+export function FilterBar({ note }: { note?: string }) {
+  const { filter, prev, setPeriod, months } = useData();
+  const active = months.find((m) => { const r = monthRange(m); return r.from === filter.from && r.to === filter.to; });
+  const [custom, setCustom] = useState(!active && months.length > 0);
   return (
     <div className="fbar">
-      {!hideBasis && <>
-      <span className="lbl">Basis tanggal</span>
-      <select className="in" value={basis} disabled={!!basisLocked} onChange={(e) => setFilter({ ...filter, basis: e.target.value as DateBasis })}>
-        {(Object.keys(BASIS_LABEL) as DateBasis[]).map((b) => <option key={b} value={b}>{BASIS_LABEL[b]}</option>)}
+      <CalendarDays className="ic" style={{ color: 'var(--muted)' }} />
+      <select className="in" value={custom ? 'custom' : active ?? ''} onChange={(e) => {
+        if (e.target.value === 'custom') return setCustom(true);
+        setCustom(false);
+        setPeriod(monthRange(e.target.value));
+      }}>
+        {!active && !custom && <option value="">{short(filter.from)} – {short(filter.to)}</option>}
+        {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        <option value="custom">Rentang tanggal…</option>
       </select>
-      <Info>
-        Menentukan tanggal yang dipakai untuk memasukkan data ke rentang: <b>Pesanan dibuat</b>, <b>Pembayaran</b>, <b>Pesanan selesai</b> (laporan Pesanan Selesai) atau <b>Dana dilepas</b> (Tanggal Dana Dilepaskan di laporan Penghasilan).
-        Bulan dibuat, bulan selesai, dan bulan dana dilepas bisa berbeda, jadi total per bulan berbeda antar basis.{note ? ` ${note}` : ''}
-      </Info>
-      <span className="sep" />
-      </>}
-      <div className="chips">
-        {months.slice(0, 6).map((m) => <button key={m} className={activeMonth === m ? 'on' : ''} onClick={() => setFilter({ ...filter, ...monthRange(m) })}>{monthLabel(m)}</button>)}
-      </div>
-      <span className="sep" />
-      <input className="in" type="date" value={filter.from} max={filter.to} onChange={(e) => e.target.value && setFilter({ ...filter, from: e.target.value })} aria-label="Dari tanggal" />
-      <span className="muted">s/d</span>
-      <input className="in" type="date" value={filter.to} min={filter.from} onChange={(e) => e.target.value && setFilter({ ...filter, to: e.target.value })} aria-label="Sampai tanggal" />
+      {custom && (
+        <>
+          <input className="in" type="date" value={filter.from} max={filter.to} onChange={(e) => e.target.value && setPeriod({ from: e.target.value, to: filter.to })} aria-label="Dari tanggal" />
+          <span className="muted">s/d</span>
+          <input className="in" type="date" value={filter.to} min={filter.from} onChange={(e) => e.target.value && setPeriod({ from: filter.from, to: e.target.value })} aria-label="Sampai tanggal" />
+        </>
+      )}
+      <span className="fnote">{note ?? <>Omzet menurut tanggal <b>{BASIS_LABEL[filter.basis].toLowerCase()}</b> · dibanding {short(prev.from)} – {short(prev.to)}</>}</span>
     </div>
   );
 }

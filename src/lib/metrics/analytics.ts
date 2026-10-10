@@ -157,7 +157,7 @@ export function returnDate(r: ReturnRequest, b: ReturnBasis) {
 
 /**
  * Refund terealisasi = Σ Total Pengembalian Dana pengajuan berstatus bukan Dibatalkan/Ditolak dan memiliki Waktu Pengembalian Dana Selesai.
- * Tingkat pengembalian = pesanan dengan pengajuan (bukan batal) ÷ pesanan selesai, keduanya pada rentang & basis tanggal pesanan dibuat.
+ * Tingkat pengembalian = pesanan pada periode (basis tanggal omzet) yang punya pengajuan bukan batal ÷ pesanan pada periode.
  */
 export function returnsAnalysis(ix: Index, f: Filter, b: ReturnBasis) {
   const reqs = ix.ds.returns.filter((r) => inRange(returnDate(r, b), f));
@@ -176,8 +176,8 @@ export function returnsAnalysis(ix: Index, f: Filter, b: ReturnBasis) {
     const e = prod.get(k) ?? { label: p?.name ?? l.productName, sub: p ? p.brand : l.variation, qty: 0, requests: new Set() };
     e.qty += l.qty; e.requests.add(r.returnNo); prod.set(k, e);
   }
-  // Tingkat pengembalian dihitung pada kohort pesanan dibuat di rentang ini (pengajuan bisa terjadi di bulan berikutnya).
-  const cohort = ix.ds.orders.filter((o) => inRange(day(o.createdAt), f));
+  // Tingkat pengembalian = kohort pesanan pada periode (basis tanggal omzet); pengajuannya boleh terjadi kapan pun.
+  const cohort = ordersIn(ix, f);
   const cohortReturned = cohort.filter((o) => (ix.returnsByOrder.get(o.orderNo) ?? []).some((r) => returnState(r) !== 'VOID'));
   return {
     requests: reqs.length, valid: valid.length, refundedCount: refunded.length, refundTotal: sum(refunded, (r) => r.refundTotal),
@@ -296,9 +296,10 @@ export function profitability(ix: Index, f: Filter, by: 'product' | 'brand' | 'c
     settled ? totals.settledOrders++ : totals.unsettledOrders++;
     for (const it of items) {
       const p = productOf(ix, it);
-      const key = by === 'listing' ? it.productKey : p ? (by === 'product' ? `p${p.id}` : (by === 'brand' ? p.brand : p.category) || '(kosong)') : `${UNMAPPED}`;
-      const label = by === 'listing' ? it.productName : p ? (by === 'product' ? p.name : key) : UNMAPPED;
-      const e = m.get(key) ?? { key, label, sub: by === 'listing' ? it.variation : by === 'product' && p ? p.brand : '', gmv: 0, netSettled: 0, cogs: 0, profit: 0, margin: null, units: 0, settledUnits: 0, cogsCoverage: 0, cogsKnownNet: 0, withCogsUnits: 0 };
+      const asListing = by === 'listing' || (by === 'product' && !p);
+      const key = asListing ? `l:${it.productKey}` : p ? (by === 'product' ? `p${p.id}` : (by === 'brand' ? p.brand : p.category) || '(kosong)') : UNMAPPED;
+      const label = asListing ? it.productName : p ? (by === 'product' ? p.name : key) : UNMAPPED;
+      const e = m.get(key) ?? { key, label, sub: asListing ? it.variation : by === 'product' && p ? p.brand : '', gmv: 0, netSettled: 0, cogs: 0, profit: 0, margin: null, units: 0, settledUnits: 0, cogsCoverage: 0, cogsKnownNet: 0, withCogsUnits: 0 };
       e.gmv += it.subtotal; e.units += it.qty; totals.gmv += it.subtotal;
       if (settled) {
         const alloc = sub ? net * (it.subtotal / sub) : 0;

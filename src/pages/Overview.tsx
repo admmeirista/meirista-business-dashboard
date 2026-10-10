@@ -1,70 +1,105 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Package, Wallet, Receipt, Undo2, Users, TrendingUp, Banknote } from 'lucide-react';
+import { ShoppingBag, Package, Wallet, TrendingUp } from 'lucide-react';
 import { useData } from '../data';
 import { FilterBar } from '../components/FilterBar';
-import { BarList, Composition, TimeChart } from '../components/charts';
-import { Kpi, PageHead, Panel, Warnings, num, pct, rp, rpShort } from '../components/ui';
-import { dataWarnings, profitability, returnsAnalysis, salesBy, salesSummary, settlementSummary } from '../lib/metrics/analytics';
-import { BASIS_LABEL } from '../lib/metrics/dataset';
+import { TimeChart } from '../components/charts';
+import { Delta, Kpi, PageHead, Panel, num, pct, rp, rpShort } from '../components/ui';
+import { profitability, salesBy, salesSummary, settlementSummary } from '../lib/metrics/analytics';
+import { insights } from '../lib/metrics/insights';
+import { FEE_GROUPS } from '../lib/fees';
 
 export default function Overview() {
-  const { ix, filter } = useData();
-  const m = useMemo(() => ({
-    s: salesSummary(ix, filter),
-    st: settlementSummary(ix, filter),
-    ret: returnsAnalysis(ix, filter, 'requested'),
-    prof: profitability(ix, filter, 'product'),
-    prod: salesBy(ix, filter, 'product'),
-    pay: salesBy(ix, filter, 'payment'),
-    prov: salesBy(ix, filter, 'province'),
-    warn: dataWarnings(ix, filter),
-  }), [ix, filter]);
-  const { s, st, ret, prof } = m;
+  const { ix, filter, prev } = useData();
+  const m = useMemo(() => {
+    const rel = { ...filter, basis: 'released' as const };
+    const relPrev = { ...prev, basis: 'released' as const };
+    const prevProducts = new Map(salesBy(ix, prev, 'product').map((r) => [r.key, r.gmv]));
+    return {
+      s: salesSummary(ix, filter), sp: salesSummary(ix, prev),
+      st: settlementSummary(ix, rel), stp: settlementSummary(ix, relPrev),
+      flowSt: settlementSummary(ix, filter),
+      prof: profitability(ix, filter, 'product'), profPrev: profitability(ix, prev, 'product'),
+      top: salesBy(ix, filter, 'product').slice(0, 6).map((r) => ({ ...r, before: prevProducts.get(r.key) ?? null })),
+      watch: insights(ix, filter).slice(0, 6),
+    };
+  }, [ix, filter, prev]);
+  const { s, sp, st, stp, prof } = m;
+  const fs2 = m.flowSt;
+  const hasCogs = !!prof.totals.coverage;
+
+  // Alur uang: dari harga produk sampai dana diterima (pesanan yang dananya dilepas pada periode ini).
+  const flow = FEE_GROUPS.filter((g) => g.key !== 'voucher' || fs2.groups.find((x) => x.key === g.key)!.total !== 0).map((g) => {
+    const x = fs2.groups.find((y) => y.key === g.key)!;
+    if (g.key === 'subtotal') return [{ label: 'Harga produk', v: x.fields[0].total }, { label: 'Refund ke pembeli', v: x.fields[1].total }];
+    return [{ label: g.label.replace(' (Opsional)', '').replace('Total Biaya Pengiriman', 'Selisih ongkir').replace('Biaya Gratis Ongkir XTRA', 'Program Gratis Ongkir XTRA').replace('Biaya Layanan', 'Program Promo XTRA'), v: x.total }];
+  }).flat().filter((r) => r.v !== 0);
+  const base = flow[0]?.v || 1;
 
   return (
     <>
-      <PageHead eyebrow="Analitik" title="Ringkasan Eksekutif" />
+      <PageHead eyebrow="Ringkasan" title="Bagaimana toko bulan ini?" />
       <FilterBar />
-      <Warnings items={m.warn} />
-      <div className="kpis">
-        <Kpi dark icon={<ShoppingBag className="ic" />} label="Penjualan (GMV)" value={rpShort(s.gmv)} sub={`${num(s.orders)} pesanan · ${num(s.units)} unit`}
-          formula={<>Σ Subtotal Pesanan per item (Harga Setelah Diskon × Jumlah) dari laporan Pesanan Selesai, basis: {BASIS_LABEL[filter.basis]}.</>} />
-        <Kpi icon={<Package className="ic" />} label="Rata-rata per pesanan" value={rp(s.aov)} sub={`${num(s.lines)} baris item`} formula="AOV = GMV ÷ jumlah pesanan unik (No. Pesanan)." small />
-        <Kpi icon={<Users className="ic" />} label="Pembeli unik" value={num(s.buyers)} sub="Username (Pembeli)" formula="Jumlah username pembeli unik pada pesanan dalam rentang." />
-        <Kpi icon={<Banknote className="ic" />} label="Dibayar pembeli" value={rpShort(s.buyerPaid)} sub="Total Pembayaran" formula="Σ Total Pembayaran level pesanan — dihitung sekali per pesanan, bukan per item." small />
-        <Kpi icon={<Wallet className="ic" />} label="Dana dilepas" value={st.records ? rpShort(st.totalIncome) : <span className="na">Belum ada data</span>} sub={st.records ? `${num(st.records)} pesanan · + penyesuaian ${rpShort(st.adjustments)}` : 'Import laporan Penghasilan'}
-          formula="Σ Total Penghasilan baris 'Order' laporan Penghasilan (baris 'Sku' tidak dijumlahkan). Penyesuaian ditampilkan terpisah." />
-        <Kpi icon={<Receipt className="ic" />} label="Biaya marketplace" value={st.records ? rpShort(st.marketplaceFees) : <span className="na">–</span>} sub={st.records ? `${pct(st.feeRate)} dari harga produk` : ''}
-          formula="Σ biaya platform + Gratis Ongkir XTRA + layanan + promosi + lainnya + pajak (tanda asli). Rate = −biaya ÷ Harga Produk." small />
-        <Kpi icon={<Undo2 className="ic" />} label="Refund selesai" value={rpShort(ret.refundTotal)} sub={`${num(ret.refundedCount)} pengajuan · ${num(ret.requests)} diajukan`}
-          formula="Σ Total Pengembalian Dana pengajuan bukan Dibatalkan/Ditolak dengan Waktu Pengembalian Dana Selesai terisi; rentang menurut tanggal pengajuan." small />
-        <Kpi icon={<TrendingUp className="ic" />} label="Laba kotor" value={prof.totals.coverage ? rpShort(prof.totals.profit) : <span className="na">HPP belum diisi</span>}
-          sub={prof.totals.coverage ? `Margin ${pct(prof.totals.margin)} · cakupan HPP ${pct(prof.totals.coverage)}` : <Link to="/master">Isi HPP di Master Produk</Link>}
-          formula="Alokasi Dana Dilepas per item − HPP, hanya item yang sudah dilepas DAN punya HPP. Item tanpa HPP tidak dianggap 0." small />
+      <div className="kpis k4">
+        <Kpi dark icon={<ShoppingBag className="ic" />} label="Omzet" value={rpShort(s.gmv)} sub={<Delta dark now={s.gmv} before={sp.gmv} />}
+          formula="Σ (harga setelah diskon × jumlah) semua item pesanan selesai pada periode, menurut tanggal pesanan selesai." />
+        <Kpi icon={<Package className="ic" />} label="Pesanan" value={num(s.orders)} sub={<><div className="hint">{rp(s.aov)} per pesanan · {num(s.units)} unit</div><Delta now={s.orders} before={sp.orders} /></>}
+          formula="Jumlah No. Pesanan unik. Rata-rata per pesanan = omzet ÷ pesanan." />
+        <Kpi icon={<Wallet className="ic" />} label="Dana diterima" value={st.records ? rpShort(st.totalIncome) : <span className="na">–</span>}
+          sub={st.records ? <><div className="hint">dilepas Shopee periode ini · biaya {pct(st.feeRate)}</div><Delta now={st.totalIncome} before={stp.records ? stp.totalIncome : null} /></> : <div className="hint">{ix.ds.reports.length ? 'Belum ada dana yang dilepas Shopee di periode ini' : <Link to="/import">Import laporan Penghasilan</Link>}</div>}
+          formula="Total Penghasilan yang dilepas Shopee ke saldo penjual pada periode ini (Tanggal Dana Dilepaskan), setelah semua biaya. Belum termasuk penyesuaian." />
+        <Kpi icon={<TrendingUp className="ic" />} label="Laba kotor" value={hasCogs ? rpShort(prof.totals.profit) : <span className="na">Belum ada HPP</span>}
+          sub={hasCogs ? <><div className="hint">margin {pct(prof.totals.margin)} · cakupan HPP {pct(prof.totals.coverage, 0)}</div><Delta now={prof.totals.profit} before={m.profPrev.totals.coverage ? m.profPrev.totals.profit : null} /></> : <div className="hint"><Link to="/master">Isi HPP produk</Link> untuk melihat laba</div>}
+          formula="Dana diterima per item − HPP, hanya item yang sudah dilepas dan punya HPP. Item tanpa HPP tidak dianggap 0." />
       </div>
 
       <div className="g21">
-        <Panel title="Penjualan harian" sub={`GMV per hari · basis ${BASIS_LABEL[filter.basis].toLowerCase()}`}>
-          <TimeChart data={s.daily} value={(d) => d.gmv} format={rp} label="GMV" />
+        <Panel title="Omzet harian" sub="Arahkan kursor ke batang untuk melihat nilainya">
+          <TimeChart data={s.daily} value={(d) => d.gmv} format={rp} label="Omzet" height={230} />
         </Panel>
-        <Panel title="Metode pembayaran" sub="Porsi GMV">
-          <Composition rows={m.pay} label={(r) => r.label} value={(r) => r.gmv} format={rpShort} />
-          <div className="sect" style={{ marginTop: 18 }}>Provinsi teratas</div>
-          <BarList rows={m.prov} max={5} label={(r) => r.label} value={(r) => r.gmv} format={rpShort} />
+        <Panel title="Yang perlu diperhatikan" sub="Dibaca otomatis dari data periode ini">
+          <ul className="watch">
+            {m.watch.map((w, i) => <li key={i} className={`w-${w.level}`}><i className="dot" /><div><b>{w.title}</b><span className="d">{w.detail}</span></div></li>)}
+          </ul>
         </Panel>
       </div>
+
       <div className="g2">
-        <Panel title="Pesanan harian" sub="Jumlah pesanan unik">
-          <TimeChart data={s.daily} value={(d) => d.orders} format={num} label="Pesanan" kind="line" height={180} />
+        <Panel title="Produk terlaris" actions={<Link className="btn sm" to="/sales">Semua produk</Link>}>
+          <div className="tablewrap flat">
+            <table className="t">
+              <thead><tr><th>Produk</th><th className="num">Omzet</th><th className="num">Unit</th><th className="num">vs lalu</th></tr></thead>
+              <tbody>
+                {m.top.map((r) => (
+                  <tr key={r.key}>
+                    <td className="wrap"><div style={{ fontWeight: 700 }}>{r.label}</div><div className="sub">{pct(r.share)} dari omzet</div></td>
+                    <td className="num">{rpShort(r.gmv)}</td>
+                    <td className="num">{num(r.units)}</td>
+                    <td className="num">{r.before ? <span className={r.gmv >= r.before ? 'pos' : 'neg'}>{r.gmv >= r.before ? '▲' : '▼'} {pct(Math.abs(r.gmv - r.before) / r.before, 0)}</span> : <span className="muted">baru</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Panel>
-        <Panel title="Dana dilepas harian" sub="Menurut Tanggal Dana Dilepaskan (record dalam filter)">
-          <TimeChart data={st.daily} value={(d) => d.income} format={rp} label="Dana dilepas" height={180} />
+        <Panel title="Dari harga produk ke dana diterima" sub={fs2.records ? `${num(fs2.records)} dari ${num(s.orders)} pesanan periode ini sudah dicairkan Shopee` : 'Belum ada pesanan periode ini di laporan Penghasilan'} actions={<Link className="btn sm" to="/finance">Rincian</Link>}>
+          {fs2.records ? (
+            <table className="t flow2">
+              <tbody>
+                {flow.map((r) => (
+                  <tr key={r.label}>
+                    <td>{r.label}</td>
+                    <td style={{ width: '34%' }}><div className="bar"><i style={{ width: `${Math.min(100, (Math.abs(r.v) / base) * 100)}%`, background: r.v < 0 ? 'var(--neg)' : 'var(--acc)' }} /></div></td>
+                    <td className="num">{rpShort(r.v)}</td>
+                    <td className="num muted" style={{ width: 60 }}>{pct(r.v / base)}</td>
+                  </tr>
+                ))}
+                <tr className="total"><td>Dana diterima</td><td /><td className="num">{rpShort(fs2.totalIncome)}</td><td className="num">{pct(fs2.totalIncome / base)}</td></tr>
+              </tbody>
+            </table>
+          ) : <div className="empty">Import laporan Penghasilan untuk melihat potongan biaya Shopee.</div>}
         </Panel>
       </div>
-      <Panel title="Produk terlaris" sub="Berdasarkan GMV — produk master bila sudah dipetakan, selain itu nama listing" actions={<Link className="btn sm" to="/sales">Detail</Link>}>
-        <BarList rows={m.prod} max={10} label={(r) => r.label} sub={(r) => `${num(r.units)} unit · ${num(r.orders)} pesanan${r.sub ? ' · ' + r.sub : ''}`} value={(r) => r.gmv} format={rpShort} />
-      </Panel>
     </>
   );
 }
