@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, Upload, Trash2, EyeOff, ExternalLink, Sparkles, Eye } from 'lucide-react';
-import { AI_MODELS, aiSettings, testConnection, type AiModel } from '../lib/ai';
+import { aiSettings, testConnection, type GeminiModel } from '../lib/ai';
 import { useData } from '../data';
 import { db } from '../lib/db';
 import { backupFileName, createBackup, restoreBackup } from '../lib/backup';
@@ -113,50 +113,60 @@ function Backup() {
 
 function AiSettings() {
   const [key, setKey] = useState(aiSettings.apiKey());
-  const [model, setModel] = useState<AiModel>(aiSettings.model());
+  const [model, setModel] = useState(aiSettings.model());
+  const [models, setModels] = useState<GeminiModel[]>(aiSettings.models());
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const save = () => { aiSettings.setApiKey(key); aiSettings.setModel(model); toast('Pengaturan AI disimpan', 'ok'); };
   const test = async () => {
-    save();
+    aiSettings.setApiKey(key); aiSettings.setModel(model);
     setBusy(true); setStatus(null);
-    try { setStatus({ ok: true, text: `Terhubung — model ${await testConnection()} siap dipakai.` }); }
-    catch (e) { setStatus({ ok: false, text: (e as Error).message }); }
+    try {
+      const r = await testConnection();
+      setModels(r.models); setModel(aiSettings.model());
+      setStatus({ ok: true, text: `Terhubung — ${r.models.length} model Gemini tersedia. Model aktif: ${r.model}.` });
+    } catch (e) { setStatus({ ok: false, text: (e as Error).message }); }
     finally { setBusy(false); }
   };
   return (
     <div className="g2" style={{ alignItems: 'start' }}>
-      <Panel title="Koneksi AI (Claude · Anthropic)" sub="Dipakai tombol “Analisis dengan AI” di Ringkasan, Penjualan, Retur, dan Biaya">
-        <label className="f">API key Anthropic</label>
+      <Panel title="Koneksi AI (Google Gemini)" sub="Dipakai tombol “Analisis dengan AI” di sidebar dan di setiap halaman laporan">
+        <label className="f">Gemini API key</label>
         <div className="row" style={{ flexWrap: 'nowrap' }}>
-          <input className="in full mono" type={show ? 'text' : 'password'} placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" spellCheck={false} />
+          <input className="in full mono" type={show ? 'text' : 'password'} placeholder="AIza…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" spellCheck={false} />
           <button className="btn" onClick={() => setShow(!show)} aria-label="Tampilkan">{show ? <EyeOff className="ic" /> : <Eye className="ic" />}</button>
         </div>
         <label className="f">Model</label>
-        <select className="in full" value={model} onChange={(e) => setModel(e.target.value as AiModel)}>
-          {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
+        {models.length ? (
+          <select className="in full" value={model} onChange={(e) => setModel(e.target.value)}>
+            {!models.some((m) => m.id === model) && <option value={model}>{model}</option>}
+            {models.map((m) => <option key={m.id} value={m.id}>{m.label} ({m.id})</option>)}
+          </select>
+        ) : (
+          <input className="in full mono" value={model} onChange={(e) => setModel(e.target.value)} placeholder="gemini-2.5-flash" />
+        )}
+        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{models.length ? 'Daftar diambil langsung dari API key Anda.' : 'Klik “Tes koneksi” untuk memuat daftar model yang tersedia.'} Model “Flash” cepat & hemat; “Pro” lebih mendalam.</div>
         <div className="row" style={{ marginTop: 16 }}>
           <button className="btn pri" onClick={save}>Simpan</button>
-          <button className={`btn${busy ? ' busy' : ''}`} onClick={test} disabled={!key}><Sparkles className="ic" />Tes koneksi</button>
+          <button className={`btn${busy ? ' busy' : ''}`} onClick={test} disabled={!key}><Sparkles className="ic" />Tes koneksi & muat model</button>
           {aiSettings.apiKey() && <button className="btn ghost" onClick={() => { aiSettings.setApiKey(''); setKey(''); setStatus(null); toast('API key dihapus', 'ok'); }}>Hapus key</button>}
         </div>
         {status && <div className={status.ok ? 'ok-box' : 'err-box'}>{status.text}</div>}
       </Panel>
-      <Panel title="Cara mendapatkan API key">
+      <Panel title="Cara mendapatkan Gemini API key">
         <ol style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 13, lineHeight: 1.8, color: '#4e5751' }}>
-          <li>Buka <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com <ExternalLink className="ic" style={{ width: 12 }} /></a> dan login.</li>
-          <li>Isi saldo/billing di menu <b>Billing</b> (biaya dihitung per pemakaian).</li>
-          <li><b>API Keys → Create Key</b>, beri nama mis. “Meirista BI”, salin key (diawali <span className="mono">sk-ant-</span>).</li>
-          <li>Tempel di kolom sebelah, klik <b>Tes koneksi</b>.</li>
+          <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio <ExternalLink className="ic" style={{ width: 12 }} /></a> dengan akun Google Anda.</li>
+          <li>Klik <b>Create API key</b> (pilih/buat project Google Cloud), lalu salin key (biasanya diawali <span className="mono">AIza</span>).</li>
+          <li>Tempel di kolom sebelah, klik <b>Tes koneksi & muat model</b>, pilih model, lalu <b>Simpan</b>.</li>
         </ol>
         <div className="info-box" style={{ display: 'block' }}>
           <b>Privasi & keamanan</b>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontWeight: 500 }}>
-            <li>API key hanya disimpan di browser ini dan dikirim langsung ke Anthropic — tidak ke GitHub atau server lain.</li>
-            <li>Yang dikirim ke AI hanya ringkasan angka (omzet, produk, biaya, retur). Username, alamat, dan No. Pesanan tidak dikirim. Isinya bisa dilihat lewat “Lihat data yang dikirim”.</li>
-            <li>Siapa pun yang memakai browser ini bisa memakai key tersebut. Gunakan key khusus dengan batas pemakaian (spend limit) di console Anthropic.</li>
+            <li>API key hanya disimpan di browser ini dan dikirim langsung ke Google — tidak ke GitHub atau server lain.</li>
+            <li>Yang dikirim ke AI hanya ringkasan angka (omzet, produk, biaya, retur). Username, alamat, dan No. Pesanan tidak dikirim — isinya bisa dilihat lewat “Lihat data yang dikirim”.</li>
+            <li>Pada paket <b>gratis</b> Gemini API, Google dapat memakai isi permintaan untuk meningkatkan produknya. Aktifkan billing (paket berbayar) bila tidak ingin data penjualan dipakai Google.</li>
+            <li>Siapa pun yang memakai browser ini bisa memakai key tersebut. Batasi key di Google Cloud Console (API restrictions → Generative Language API; Website restrictions → domain dashboard ini).</li>
           </ul>
         </div>
       </Panel>

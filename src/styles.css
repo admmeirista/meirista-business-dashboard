@@ -208,12 +208,12 @@ pre.json{white-space:pre-wrap;word-break:break-all;font-size:11px;margin:0;max-w
 .kpi .v{font-size:27px;font-weight:900}
 .kpi .v.sm{font-size:22px}
 .kpi .top{justify-content:flex-start}
-.kpi .top .info{margin-left:auto}
-.info{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--muted);cursor:help;position:relative;flex-shrink:0}
-.info:hover{color:var(--fg);background:var(--line-2)}
-.info .ic{width:14px;height:14px}
-.info .tip{display:none;position:absolute;right:-6px;top:24px;width:min(320px,80vw);background:var(--ink);color:#e6ebe6;font-size:12px;font-weight:600;line-height:1.5;padding:10px 12px;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.2);z-index:50;text-transform:none;letter-spacing:0;white-space:normal;text-align:left}
-.info:hover .tip,.info:focus .tip{display:block}
+.kpi .top .qtip{margin-left:auto}
+.qtip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:var(--muted);cursor:help;position:relative;flex-shrink:0}
+.qtip:hover{color:var(--fg);background:var(--line-2)}
+.qtip .ic{width:14px;height:14px}
+.qtip .tip{display:none;position:absolute;right:-6px;top:24px;width:min(320px,80vw);background:var(--ink);color:#e6ebe6;font-size:12px;font-weight:600;line-height:1.5;padding:10px 12px;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.2);z-index:50;text-transform:none;letter-spacing:0;white-space:normal;text-align:left}
+.qtip:hover .tip,.qtip:focus .tip{display:block}
 .na{color:var(--muted);font-weight:700}
 /* Panel & grid */
 .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
@@ -354,3 +354,9 @@ select.in.full,input.in.full{width:100%}
 .ai-cursor{display:inline-block;width:8px;height:15px;background:var(--acc);vertical-align:-2px;animation:blink 1s steps(2) infinite;margin-left:2px}
 @keyframes blink{50%{opacity:0}}
 @media (max-width:560px){.pp-pop{flex-direction:column}.pp-side{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line)}.pp-btn{min-width:0}}
+/* tombol AI di sidebar */
+.side-ai{padding:0 4px 14px;margin-bottom:6px;border-bottom:1px solid var(--ink-line)}
+.side-ai-btn{width:100%;justify-content:flex-start;background:linear-gradient(135deg,rgba(232,105,58,.22),rgba(232,105,58,.08));border:1px solid rgba(232,105,58,.35);color:#fff;height:40px}
+.side-ai-btn:hover{background:linear-gradient(135deg,rgba(232,105,58,.32),rgba(232,105,58,.14));border-color:rgba(232,105,58,.55)}
+.side-ai-btn .ic{color:#f3a37f}
+.side-ai-sub{font-size:11px;color:var(--sage-2);margin:6px 2px 0;text-transform:capitalize}

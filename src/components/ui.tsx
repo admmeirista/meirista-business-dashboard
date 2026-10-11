@@ -22,7 +22,7 @@ export const maskName = (s: string, on: boolean) => (!on || s.length <= 3 ? s : 
 
 // ───────── komponen kecil ─────────
 export function Info({ children }: { children: ReactNode }) {
-  return <span className="info" tabIndex={0}><CircleHelp className="ic" /><span className="tip">{children}</span></span>;
+  return <span className="qtip" tabIndex={0}><CircleHelp className="ic" /><span className="tip">{children}</span></span>;
 }
 
 export function PageHead({ eyebrow, title, actions, children }: { eyebrow: string; title: string; actions?: ReactNode; children?: ReactNode }) {

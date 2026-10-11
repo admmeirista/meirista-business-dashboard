@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ShoppingBag, Undo2, Receipt, Scale, Upload, Boxes, Settings as SettingsIcon, Menu, Lock } from 'lucide-react';
 import { useData } from './data';
+import { AiButton } from './components/Ai';
+import { periodLabel } from './components/FilterBar';
+import { AI_TASK, aiPayload, type AiTopic } from './lib/metrics/summary';
 import Overview from './pages/Overview';
 import Sales from './pages/Sales';
 import Returns from './pages/Returns';
@@ -12,13 +15,13 @@ import Master from './pages/Master';
 import Settings from './pages/Settings';
 
 const NAV = [
-  { sec: 'ANALISIS', items: [
+  { sec: 'PERFORMA TOKO', items: [
     { to: '/', label: 'Ringkasan', icon: LayoutDashboard },
     { to: '/sales', label: 'Penjualan', icon: ShoppingBag },
     { to: '/returns', label: 'Retur', icon: Undo2 },
     { to: '/costs', label: 'Biaya', icon: Receipt },
   ] },
-  { sec: 'DATA', items: [
+  { sec: 'KONFIGURASI', items: [
     { to: '/import', label: 'Import & Backup', icon: Upload },
     { to: '/master', label: 'Produk & HPP', icon: Boxes },
     { to: '/recon', label: 'Rekonsiliasi', icon: Scale },
@@ -38,7 +41,7 @@ function Brand() {
 }
 
 export default function App() {
-  const { ix, ready } = useData();
+  const { ix, ready, filter, prev } = useData();
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [loc.pathname]);
@@ -50,6 +53,7 @@ export default function App() {
       <div className="mtop"><button onClick={() => setOpen(true)} aria-label="Menu"><Menu className="ic" /></button><Brand /></div>
       <aside className="side">
         <Brand />
+        <SideAi topic={TOPIC[loc.pathname] ?? 'overview'} ix={ix} filter={filter} prev={prev} />
         {NAV.map((s) => (
           <div key={s.sec}>
             <div className="sec">{s.sec}</div>
@@ -87,6 +91,21 @@ export default function App() {
             </Routes>
           )}
       </main>
+    </div>
+  );
+}
+
+const TOPIC: Record<string, AiTopic> = { '/': 'overview', '/sales': 'sales', '/returns': 'returns', '/costs': 'costs' };
+const TOPIC_LABEL: Record<AiTopic, string> = { overview: 'ringkasan', sales: 'penjualan', returns: 'retur', costs: 'biaya' };
+
+/** Tombol AI di sidebar: menganalisis halaman laporan yang sedang dibuka (default: ringkasan). */
+function SideAi({ topic, ix, filter, prev }: { topic: AiTopic } & Pick<ReturnType<typeof useData>, 'ix' | 'filter' | 'prev'>) {
+  return (
+    <div className="side-ai">
+      <AiButton className="btn side-ai-btn" label="Analisis dengan AI" cacheKey={`${topic}|${filter.from}|${filter.to}|${prev.from}`}
+        title={`Analisis AI ${TOPIC_LABEL[topic]} — ${periodLabel(filter)}`} task={AI_TASK[topic]}
+        build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), topic)} />
+      <div className="side-ai-sub">{TOPIC_LABEL[topic]} · {periodLabel(filter)}</div>
     </div>
   );
 }

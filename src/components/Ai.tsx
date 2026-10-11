@@ -1,7 +1,8 @@
 import { Fragment, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Sparkles, Copy, RotateCcw, Square } from 'lucide-react';
-import { aiConfigured, aiSettings, runAnalysis, AI_MODELS } from '../lib/ai';
+import { aiConfigured, aiSettings, runAnalysis, providerLabel } from '../lib/ai';
 import { toast } from './ui';
 
 /** Teks inline: **tebal** → <b>. Aman (tanpa innerHTML). */
@@ -47,7 +48,7 @@ export function AiButton({ cacheKey, title, task, build, label = 'Analisis denga
   return (
     <>
       <button className={className} onClick={() => setOpen(true)}><Sparkles className="ic" />{label}</button>
-      {open && <AiModal cacheKey={cacheKey} title={title} task={task} build={build} onClose={() => setOpen(false)} />}
+      {open && createPortal(<AiModal cacheKey={cacheKey} title={title} task={task} build={build} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
@@ -59,7 +60,7 @@ function AiModal({ cacheKey, title, task, build, onClose }: { cacheKey: string; 
   const [showData, setShowData] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const configured = aiConfigured();
-  const modelLabel = AI_MODELS.find((m) => m.id === aiSettings.model())?.label.split(' — ')[0];
+  const modelLabel = aiSettings.models().find((m) => m.id === aiSettings.model())?.label ?? aiSettings.model();
 
   const run = async () => {
     setText(''); setErr(null); setBusy(true);
@@ -88,13 +89,13 @@ function AiModal({ cacheKey, title, task, build, onClose }: { cacheKey: string; 
         </div>
         {!configured ? (
           <div className="info-box" style={{ display: 'block' }}>
-            Analisis AI memakai Claude dari Anthropic dan perlu API key. Atur sekali di <Link to="/settings?tab=ai" onClick={onClose}>Pengaturan → AI</Link>.
+            Analisis AI memakai {providerLabel} dan perlu API key. Atur sekali di <Link to="/settings?tab=ai" onClick={onClose}>Konfigurasi → Pengaturan → AI</Link>.
           </div>
         ) : (
           <>
             {!text && !busy && !err && (
               <div className="muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
-                AI akan membaca ringkasan angka periode ini (bukan data pembeli) lalu menulis temuan dan rekomendasi. Biaya dihitung per pemakaian di akun Anthropic Anda.
+                AI akan membaca ringkasan angka periode ini (bukan data pembeli) lalu menulis temuan dan rekomendasi. Pemakaian dihitung sesuai kuota/paket Gemini API Anda.
               </div>
             )}
             <div className="ai-out">

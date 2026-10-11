@@ -1,29 +1,26 @@
-// Analisis AI dengan Claude (Anthropic API) langsung dari browser.
-// API key disimpan hanya di browser ini (localStorage) dan dikirim langsung ke api.anthropic.com.
-import Anthropic from '@anthropic-ai/sdk';
+// Analisis AI dengan Google Gemini (Gemini API) langsung dari browser.
+// API key disimpan hanya di browser ini (localStorage) dan dikirim langsung ke generativelanguage.googleapis.com.
 
-export const AI_MODELS = [
-  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 — analisis terbaik (disarankan)' },
-  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 — lebih cepat & hemat' },
-  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — paling hemat' },
-] as const;
-export type AiModel = (typeof AI_MODELS)[number]['id'];
-
-const LS = { key: 'bi.ai.key', model: 'bi.ai.model' };
+const BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
+const LS = { key: 'bi.gemini.key', model: 'bi.gemini.model', models: 'bi.gemini.models' };
 const ls = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k: string, v: string | null) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch { /* tidak tersedia */ } },
 };
 
+export interface GeminiModel { id: string; label: string; outputLimit: number }
+
 export const aiSettings = {
   apiKey: () => ls.get(LS.key) ?? '',
   setApiKey: (v: string) => ls.set(LS.key, v.trim() || null),
-  model: (): AiModel => (AI_MODELS.find((m) => m.id === ls.get(LS.model))?.id ?? 'claude-opus-5-5'),
-  setModel: (v: AiModel) => ls.set(LS.model, v),
+  model: () => ls.get(LS.model) ?? DEFAULT_MODEL,
+  setModel: (v: string) => ls.set(LS.model, v.trim() || null),
+  /** Daftar model terakhir yang dimuat dari API key ini. */
+  models: (): GeminiModel[] => { try { return JSON.parse(ls.get(LS.models) ?? '[]'); } catch { return []; } },
 };
 export const aiConfigured = () => !!aiSettings.apiKey();
-
-const client = () => new Anthropic({ apiKey: aiSettings.apiKey(), dangerouslyAllowBrowser: true, maxRetries: 2 });
+export const providerLabel = 'Google Gemini';
 
 const SYSTEM = `Anda adalah analis bisnis e-commerce untuk toko Shopee "meirista_shop" (kosmetik & perawatan, banyak dijual dalam paket isi 3/6/12).
 Pembaca Anda adalah pemilik toko, bukan analis data. Tulis dalam Bahasa Indonesia yang lugas.
@@ -44,48 +41,78 @@ Aturan:
 
 export interface AiRun { text: string; model: string; stop: string | null }
 
-/** Jalankan analisis dengan streaming. onText dipanggil setiap potongan teks diterima. */
+class AiError extends Error {}
+
+async function request(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
+  let r: Response;
+  try {
+    r = await fetch(`${BASE}${path}`, { ...init, signal, headers: { 'x-goog-api-key': aiSettings.apiKey(), 'Content-Type': 'application/json', ...(init.headers ?? {}) } });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw new AiError('Dibatalkan.');
+    throw new AiError('Tidak bisa terhubung ke Gemini API (cek koneksi internet).');
+  }
+  if (r.ok) return r;
+  let msg = '', reason = '';
+  try { const j = await r.json(); msg = j.error?.message ?? ''; reason = j.error?.details?.find((d: { reason?: string }) => d.reason)?.reason ?? j.error?.status ?? ''; } catch { /* bukan JSON */ }
+  if (reason === 'API_KEY_INVALID' || /api key not valid/i.test(msg)) throw new AiError('API key Gemini tidak valid. Periksa di Konfigurasi → Pengaturan → AI.');
+  if (r.status === 403) throw new AiError(`Akses ditolak: ${msg || 'API key tidak punya izin untuk Gemini API.'}`);
+  if (r.status === 404) throw new AiError(`Model "${aiSettings.model()}" tidak ditemukan. Pilih model lain di Pengaturan → AI.`);
+  if (r.status === 429) throw new AiError('Batas pemakaian Gemini API tercapai (kuota/rate limit). Coba lagi nanti atau cek kuota di Google AI Studio.');
+  throw new AiError(`Gemini API error ${r.status}: ${msg || r.statusText}`);
+}
+
+/** Jalankan analisis dengan streaming (SSE). onText dipanggil setiap potongan teks diterima. */
 export async function runAnalysis(task: string, data: unknown, onText: (chunk: string) => void, signal?: AbortSignal): Promise<AiRun> {
   const model = aiSettings.model();
-  // Fallback sisi server saat permintaan ditolak oleh pengaman (Opus/Sonnet 5.5 di Claude API).
-  const fallback = model === 'claude-opus-5-5' || model === 'claude-sonnet-5-5';
+  const limit = aiSettings.models().find((m) => m.id === model)?.outputLimit;
+  const body = {
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ text: `${task}\n\n<data>\n${JSON.stringify(data)}\n</data>` }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: Math.min(limit ?? 8192, 16384) },
+  };
+  const r = await request(`/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, { method: 'POST', body: JSON.stringify(body) }, signal);
+  const reader = r.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = '', text = '', stop: string | null = null, blocked: string | null = null;
   try {
-    const stream = client().beta.messages.stream({
-      model,
-      max_tokens: 16000,
-      output_config: { effort: 'medium' },
-      ...(fallback ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
-      system: SYSTEM,
-      messages: [{ role: 'user', content: `${task}\n\n<data>\n${JSON.stringify(data)}\n</data>` }],
-    }, { signal });
-    stream.on('text', (t) => onText(t));
-    const msg = await stream.finalMessage();
-    if (msg.stop_reason === 'refusal') throw new Error('Permintaan ditolak oleh model. Coba lagi atau ganti model di Pengaturan → AI.');
-    const text = msg.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
-    return { text, model: msg.model, stop: msg.stop_reason };
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let i: number;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith('data:')) continue;
+        const chunk = JSON.parse(line.slice(5));
+        if (chunk.promptFeedback?.blockReason) blocked = chunk.promptFeedback.blockReason;
+        const cand = chunk.candidates?.[0];
+        // Bagian "thought" (model berpikir) tidak ditampilkan.
+        const t = (cand?.content?.parts ?? []).filter((p: { thought?: boolean }) => !p.thought).map((p: { text?: string }) => p.text ?? '').join('');
+        if (t) { text += t; onText(t); }
+        if (cand?.finishReason) stop = cand.finishReason;
+      }
+    }
   } catch (e) {
-    throw new Error(explain(e));
+    if ((e as Error).name === 'AbortError') throw new AiError('Dibatalkan.');
+    throw e;
   }
+  if (blocked) throw new AiError(`Permintaan diblokir Gemini (${blocked}). Coba lagi atau ganti model.`);
+  if (!text && stop && stop !== 'STOP') throw new AiError(`Gemini tidak memberi jawaban (alasan: ${stop}).`);
+  return { text, model, stop: stop === 'MAX_TOKENS' ? 'max_tokens' : stop };
 }
 
-/** Tes koneksi tanpa memakai token: ambil info model. */
-export async function testConnection(): Promise<string> {
-  try {
-    const m = await client().models.retrieve(aiSettings.model());
-    return m.display_name;
-  } catch (e) {
-    throw new Error(explain(e));
+/** Tes koneksi + muat daftar model Gemini yang bisa dipakai API key ini (tanpa memakai kuota generate). */
+export async function testConnection(): Promise<{ model: string; models: GeminiModel[] }> {
+  const r = await request('/models?pageSize=200');
+  const j = await r.json() as { models?: { name: string; displayName?: string; outputTokenLimit?: number; supportedGenerationMethods?: string[] }[] };
+  const models: GeminiModel[] = (j.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes('generateContent') && /gemini/i.test(m.name) && !/embedding|image|tts|audio|live|vision|aqa/i.test(m.name))
+    .map((m) => ({ id: m.name.replace(/^models\//, ''), label: m.displayName ?? m.name, outputLimit: m.outputTokenLimit ?? 8192 }))
+    .sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
+  ls.set(LS.models, JSON.stringify(models));
+  const current = aiSettings.model();
+  if (models.length && !models.some((m) => m.id === current)) {
+    aiSettings.setModel(models.find((m) => m.id === DEFAULT_MODEL)?.id ?? models.find((m) => /flash/.test(m.id) && !/lite|preview|exp/.test(m.id))?.id ?? models[0].id);
   }
-}
-
-function explain(e: unknown): string {
-  if (e instanceof Anthropic.APIUserAbortError) return 'Dibatalkan.';
-  if (e instanceof Anthropic.AuthenticationError) return 'API key tidak valid. Periksa di Pengaturan → AI.';
-  if (e instanceof Anthropic.PermissionDeniedError) return 'API key tidak punya akses ke model ini.';
-  if (e instanceof Anthropic.NotFoundError) return 'Model tidak ditemukan untuk API key ini — pilih model lain di Pengaturan → AI.';
-  if (e instanceof Anthropic.RateLimitError) return 'Batas pemakaian API tercapai. Coba lagi beberapa saat lagi.';
-  if (e instanceof Anthropic.BadRequestError) return `Permintaan ditolak API: ${e.message}`;
-  if (e instanceof Anthropic.APIConnectionError) return 'Tidak bisa terhubung ke API Anthropic (cek koneksi internet).';
-  if (e instanceof Anthropic.APIError) return `Error API ${e.status ?? ''}: ${e.message}`;
-  return (e as Error)?.message ?? String(e);
+  return { model: models.find((m) => m.id === aiSettings.model())?.label ?? aiSettings.model(), models };
 }
