@@ -124,3 +124,28 @@ export function CohortTable({ rows }: { rows: { month: string; size: number; cel
     </div>
   );
 }
+
+const BMON = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+/**
+ * Kelompokkan deret harian agar grafik tetap terbaca untuk periode panjang:
+ * ≤ 62 hari → harian, ≤ 190 hari → mingguan (mulai Senin), selebihnya → bulanan.
+ */
+export function bucketize<T extends { d: string }, V extends Record<string, number>>(daily: T[], pick: (r: T) => V): { unit: string; rows: ({ d: string } & V)[] } {
+  if (daily.length <= 62) return { unit: 'harian', rows: daily.map((r) => ({ d: r.d, ...pick(r) })) };
+  const weekly = daily.length <= 190;
+  const m = new Map<string, V>();
+  const order: string[] = [];
+  for (const r of daily) {
+    let k: string;
+    if (weekly) {
+      const dt = new Date(r.d + 'T00:00:00Z');
+      dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+      k = `${dt.getUTCDate()} ${BMON[dt.getUTCMonth()]} ${String(dt.getUTCFullYear()).slice(2)}`;
+    } else k = `${BMON[Number(r.d.slice(5, 7)) - 1]} ${r.d.slice(0, 4)}`;
+    const v = pick(r);
+    const e = m.get(k);
+    if (!e) { m.set(k, { ...v }); order.push(k); }
+    else for (const key of Object.keys(v) as (keyof V)[]) (e[key] as number) += v[key] as number;
+  }
+  return { unit: weekly ? 'mingguan' : 'bulanan', rows: order.map((k) => ({ d: k, ...m.get(k)! })) };
+}

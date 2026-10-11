@@ -4,6 +4,7 @@ import { loadDataset } from './lib/load';
 import { buildIndex, day, emptyDataset, type DateBasis, type Filter, type Index } from './lib/metrics/dataset';
 
 export interface Period { from: string; to: string }
+export type CompareMode = 'prev' | 'yoy';
 
 interface Ctx {
   ix: Index;
@@ -11,14 +12,18 @@ interface Ctx {
   reload: () => Promise<void>;
   /** Periode + basis tanggal omzet (default: Pesanan selesai). */
   filter: Filter;
-  /** Periode sebelumnya dengan panjang sama — untuk perbandingan. */
+  /** Periode pembanding (periode sebelumnya atau tahun lalu). */
   prev: Filter;
   setPeriod: (p: Period) => void;
+  compare: CompareMode;
+  setCompare: (c: CompareMode) => void;
   basis: DateBasis;
   setBasis: (b: DateBasis) => void;
   mask: boolean;
   setMask: (v: boolean) => void;
-  months: string[]; // bulan yang punya pesanan menurut basis omzet, terbaru dulu
+  /** Jumlah pesanan per bulan (YYYY-MM) menurut basis omzet. */
+  monthCounts: Map<string, number>;
+  months: string[]; // bulan yang punya pesanan, terbaru dulu
 }
 
 const DataCtx = createContext<Ctx | null>(null);
@@ -33,30 +38,61 @@ const store = {
   set(k: string, v: unknown) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* penyimpanan browser tidak tersedia */ } },
 };
 
+const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const pad = (n: number) => String(n).padStart(2, '0');
 export const monthRange = (m: string): Period => {
   const [y, mo] = m.split('-').map(Number);
-  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  return { from: `${m}-01`, to: `${m}-${String(last).padStart(2, '0')}` };
+  return { from: `${m}-01`, to: `${m}-${pad(lastDay(y, mo))}` };
+};
+export const quarterRange = (y: number, q: number): Period => ({ from: `${y}-${pad(q * 3 - 2)}-01`, to: `${y}-${pad(q * 3)}-${pad(lastDay(y, q * 3))}` });
+export const yearRange = (y: number): Period => ({ from: `${y}-01-01`, to: `${y}-12-31` });
+
+export type PeriodKind = { kind: 'month'; y: number; m: number } | { kind: 'quarter'; y: number; q: number } | { kind: 'year'; y: number } | { kind: 'custom' };
+
+/** Kenali bentuk periode (bulan / kuartal / tahun / rentang bebas). */
+export function periodKind(p: Period): PeriodKind {
+  const y = Number(p.from.slice(0, 4)), m = Number(p.from.slice(5, 7));
+  const eq = (r: Period) => r.from === p.from && r.to === p.to;
+  if (eq(yearRange(y))) return { kind: 'year', y };
+  if (m % 3 === 1 && eq(quarterRange(y, (m + 2) / 3))) return { kind: 'quarter', y, q: (m + 2) / 3 };
+  if (eq(monthRange(p.from.slice(0, 7)))) return { kind: 'month', y, m };
+  return { kind: 'custom' };
+}
+
+const shiftDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const shiftYear = (d: string, n: number) => {
+  const y = Number(d.slice(0, 4)) + n, m = Number(d.slice(5, 7));
+  return `${y}-${d.slice(5, 7)}-${pad(Math.min(Number(d.slice(8, 10)), lastDay(y, m)))}`;
 };
 
-const shift = (d: string, days: number) => new Date(Date.parse(d + 'T00:00:00Z') + days * 864e5).toISOString().slice(0, 10);
-
-/** Periode pembanding: bulan penuh → bulan sebelumnya; rentang bebas → rentang sama panjang tepat sebelumnya. */
+/** Periode sebelumnya dengan bentuk yang sama: bulan → bulan lalu, kuartal → kuartal lalu, tahun → tahun lalu. */
 export function previousPeriod(p: Period): Period {
-  const full = monthRange(p.from.slice(0, 7));
-  if (p.from === full.from && p.to === full.to) {
-    const d = new Date(Date.parse(p.from + 'T00:00:00Z'));
-    d.setUTCMonth(d.getUTCMonth() - 1);
-    return monthRange(d.toISOString().slice(0, 7));
-  }
+  const k = periodKind(p);
+  if (k.kind === 'year') return yearRange(k.y - 1);
+  if (k.kind === 'quarter') return k.q === 1 ? quarterRange(k.y - 1, 4) : quarterRange(k.y, k.q - 1);
+  if (k.kind === 'month') return monthRange(k.m === 1 ? `${k.y - 1}-12` : `${k.y}-${pad(k.m - 1)}`);
   const len = Math.round((Date.parse(p.to) - Date.parse(p.from)) / 864e5);
-  return { from: shift(p.from, -len - 1), to: shift(p.from, -1) };
+  return { from: shiftDays(p.from, -len - 1), to: shiftDays(p.from, -1) };
 }
+
+/** Geser periode maju/mundur satu unit (dipakai tombol ‹ ›). */
+export function stepPeriod(p: Period, dir: 1 | -1): Period {
+  if (dir === -1) return previousPeriod(p);
+  const k = periodKind(p);
+  if (k.kind === 'year') return yearRange(k.y + 1);
+  if (k.kind === 'quarter') return k.q === 4 ? quarterRange(k.y + 1, 1) : quarterRange(k.y, k.q + 1);
+  if (k.kind === 'month') return monthRange(k.m === 12 ? `${k.y + 1}-01` : `${k.y}-${pad(k.m + 1)}`);
+  const len = Math.round((Date.parse(p.to) - Date.parse(p.from)) / 864e5);
+  return { from: shiftDays(p.to, 1), to: shiftDays(p.to, len + 1) };
+}
+
+export const yearAgo = (p: Period): Period => ({ from: shiftYear(p.from, -1), to: shiftYear(p.to, -1) });
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [ix, setIx] = useState<Index>(() => buildIndex(emptyDataset()));
   const [ready, setReady] = useState(false);
   const [period, setPeriodState] = useState<Period | null>(() => store.get<Period | null>('bi.period', null));
+  const [compare, setCompareState] = useState<CompareMode>(() => store.get<CompareMode>('bi.compare', 'prev'));
   const [basis, setBasisState] = useState<DateBasis>(() => store.get<DateBasis>('bi.basis', 'completed'));
   const [mask, setMaskState] = useState<boolean>(() => store.get('bi.mask', true));
 
@@ -75,20 +111,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [ix, basis]);
   const months = useMemo(() => [...monthCounts.keys()].sort().reverse(), [monthCounts]);
 
-  // Default: bulan dengan pesanan terbanyak (export Shopee difilter per tanggal dibuat, jadi bulan lain bisa hanya berisi sisa).
+  // Default: bulan dengan pesanan terbanyak di antara 3 bulan terakhir yang punya data
+  // (export Shopee difilter per tanggal dibuat, jadi bulan paling ujung bisa hanya berisi sisa).
   const effective: Period = useMemo(() => {
     if (period) return period;
-    const max = Math.max(0, ...monthCounts.values());
-    const m = months.find((x) => (monthCounts.get(x) ?? 0) === max) ?? new Date().toISOString().slice(0, 7);
-    return monthRange(m);
+    const recent = months.slice(0, 3).sort((a, b) => (monthCounts.get(b) ?? 0) - (monthCounts.get(a) ?? 0));
+    return monthRange(recent[0] ?? new Date().toISOString().slice(0, 7));
   }, [period, months, monthCounts]);
 
   const filter: Filter = useMemo(() => ({ basis: basis === 'released' ? 'completed' : basis, ...effective }), [basis, effective]);
-  const prev: Filter = useMemo(() => ({ ...filter, ...previousPeriod(effective) }), [filter, effective]);
+  const prev: Filter = useMemo(() => ({ ...filter, ...(compare === 'yoy' ? yearAgo(effective) : previousPeriod(effective)) }), [filter, effective, compare]);
   const value: Ctx = {
-    ix, ready, reload, months, mask, basis: filter.basis, filter,
-    prev,
+    ix, ready, reload, months, monthCounts, mask, basis: filter.basis, filter, prev, compare,
     setPeriod: (p) => { setPeriodState(p); store.set('bi.period', p); },
+    setCompare: (c) => { setCompareState(c); store.set('bi.compare', c); },
     setBasis: (b) => { setBasisState(b); store.set('bi.basis', b); },
     setMask: (v) => { setMaskState(v); store.set('bi.mask', v); },
   };

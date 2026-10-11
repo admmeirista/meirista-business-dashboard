@@ -114,3 +114,27 @@ describe.skipIf(!hasFixtures)('HPP & profitabilitas (file asli + master sintetis
     expect(all.totals.net).toBeCloseTo(netSettledJune, 0);
   });
 });
+
+describe.skipIf(!hasFixtures)('Ringkasan eksekutif & paket AI', () => {
+  it('kalimat ringkasan memakai angka asli; paket AI tanpa data pribadi pembeli', async () => {
+    const { executiveSummary, aiPayload } = await import('../src/lib/metrics/summary');
+    const db2 = new BizDb('sum-' + Date.now());
+    const names = readdirSync(FIXTURES).filter((f) => /\.xlsx?$/i.test(f));
+    await commitUpload(db2, await parseUploads(names.map((name) => { const b = readFileSync(join(FIXTURES, name)); return { name, buf: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer }; })));
+    const ix2 = buildIndex(await loadDataset(db2));
+    const f = { basis: 'created' as const, from: '2026-06-01', to: '2026-06-30' };
+    const prev = { basis: 'created' as const, from: '2026-05-01', to: '2026-05-31' };
+    const lines = executiveSummary(ix2, f, prev, 'Juni 2026', 'Mei 2026');
+    expect(lines[0]).toContain('**9.322 pesanan**');
+    expect(lines.join(' ')).toContain('HPP produk belum diisi');
+    for (const topic of ['overview', 'sales', 'returns', 'costs'] as const) {
+      const json = JSON.stringify(aiPayload(ix2, f, prev, 'Juni 2026', 'Mei 2026', topic));
+      // Tidak ada username pembeli maupun No. Pesanan di paket AI.
+      expect(json).not.toContain(ix2.ds.orders[0].buyer);
+      expect(json).not.toContain(ix2.ds.orders[0].orderNo);
+      expect(json.length).toBeLessThan(60000);
+    }
+    const costs = aiPayload(ix2, { ...f, from: '2026-07-01', to: '2026-07-31' }, prev, 'Juli 2026', 'Juni 2026', 'costs') as { biaya: { dana_dilepas_di_periode: { dana_diterima: number } } };
+    expect(costs.biaya.dana_dilepas_di_periode.dana_diterima).toBe(702523353);
+  });
+});

@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Users, Undo2, Receipt, Scale, TrendingUp, Upload, Boxes, Settings as SettingsIcon, Menu, Lock } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Undo2, Receipt, Scale, Upload, Boxes, Settings as SettingsIcon, Menu, Lock } from 'lucide-react';
 import { useData } from './data';
 import Overview from './pages/Overview';
 import Sales from './pages/Sales';
-import Customers from './pages/Customers';
 import Returns from './pages/Returns';
 import Fees from './pages/Fees';
 import Reconciliation from './pages/Reconciliation';
-import Profitability from './pages/Profitability';
 import Import from './pages/Import';
 import Master from './pages/Master';
 import Settings from './pages/Settings';
@@ -17,17 +15,13 @@ const NAV = [
   { sec: 'ANALISIS', items: [
     { to: '/', label: 'Ringkasan', icon: LayoutDashboard },
     { to: '/sales', label: 'Penjualan', icon: ShoppingBag },
-    { to: '/customers', label: 'Pelanggan', icon: Users },
-    { to: '/returns', label: 'Pengembalian', icon: Undo2 },
-  ] },
-  { sec: 'KEUANGAN', items: [
-    { to: '/finance', label: 'Dana & Biaya Shopee', icon: Receipt },
-    { to: '/profit', label: 'Laba Produk', icon: TrendingUp },
-    { to: '/recon', label: 'Rekonsiliasi', icon: Scale },
+    { to: '/returns', label: 'Retur', icon: Undo2 },
+    { to: '/costs', label: 'Biaya', icon: Receipt },
   ] },
   { sec: 'DATA', items: [
     { to: '/import', label: 'Import & Backup', icon: Upload },
     { to: '/master', label: 'Produk & HPP', icon: Boxes },
+    { to: '/recon', label: 'Rekonsiliasi', icon: Scale },
     { to: '/settings', label: 'Pengaturan', icon: SettingsIcon },
   ] },
 ];
@@ -79,15 +73,16 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Overview />} />
               <Route path="/sales" element={<Sales />} />
-              <Route path="/customers" element={<Customers />} />
               <Route path="/returns" element={<Returns />} />
-              <Route path="/finance" element={<Fees />} />
-              <Route path="/fees" element={<Navigate to="/finance" replace />} />
-              <Route path="/profit" element={<Profitability />} />
+              <Route path="/costs" element={<Fees />} />
               <Route path="/recon" element={<Reconciliation />} />
               <Route path="/import" element={<Import />} />
               <Route path="/master" element={<Master />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/customers" element={<Navigate to="/sales?tab=customer" replace />} />
+              <Route path="/profit" element={<Navigate to="/sales?tab=profit" replace />} />
+              <Route path="/finance" element={<Navigate to="/costs" replace />} />
+              <Route path="/fees" element={<Navigate to="/costs" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}

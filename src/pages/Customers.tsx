@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Users, Repeat, UserPlus } from 'lucide-react';
 import { useData } from '../data';
-import { FilterBar } from '../components/FilterBar';
 import { CohortTable } from '../components/charts';
-import { DataTable, Delta, Kpi, PageHead, Panel, maskName, num, pct, rp, rpShort, type Col } from '../components/ui';
+import { DataTable, Delta, Kpi, Panel, maskName, num, pct, rp, rpShort, type Col } from '../components/ui';
 import { retention, rfm, SEGMENTS, type RfmRow } from '../lib/metrics/analytics';
 
 const SEG: Record<string, { desc: string; action: string }> = {
@@ -16,7 +15,7 @@ const SEG: Record<string, { desc: string; action: string }> = {
   Hibernasi: { desc: 'Sekali beli, sudah lama', action: 'Prioritas rendah' },
 };
 
-export default function Customers() {
+export function CustomersPanel() {
   const { ix, filter, prev, mask } = useData();
   const [seg, setSeg] = useState<string | null>(null);
   const rows = useMemo(() => rfm(ix, filter), [ix, filter]);
@@ -37,8 +36,6 @@ export default function Customers() {
 
   return (
     <>
-      <PageHead eyebrow="Pelanggan" title="Siapa pembeli kita?" />
-      <FilterBar />
       <div className="kpis">
         <Kpi dark icon={<Users className="ic" />} label="Pembeli" value={num(ret.buyers)} sub={<Delta dark now={ret.buyers} before={retPrev.buyers || null} />} />
         <Kpi icon={<Repeat className="ic" />} label="Membeli lagi" value={pct(ret.repeatRate)} sub={<div className="hint">{num(ret.repeatBuyers)} pembeli beli ≥ 2× di periode ini</div>} formula="Pembeli dengan ≥ 2 pesanan pada periode ÷ jumlah pembeli." />

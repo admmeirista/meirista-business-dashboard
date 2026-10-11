@@ -2,8 +2,10 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Package, Wallet, TrendingUp } from 'lucide-react';
 import { useData } from '../data';
-import { FilterBar } from '../components/FilterBar';
-import { TimeChart } from '../components/charts';
+import { FilterBar, periodLabel } from '../components/FilterBar';
+import { TimeChart, bucketize } from '../components/charts';
+import { AiButton, Inline } from '../components/Ai';
+import { AI_TASK, aiPayload, executiveSummary } from '../lib/metrics/summary';
 import { Delta, Kpi, PageHead, Panel, num, pct, rp, rpShort } from '../components/ui';
 import { profitability, salesBy, salesSummary, settlementSummary } from '../lib/metrics/analytics';
 import { insights } from '../lib/metrics/insights';
@@ -22,6 +24,7 @@ export default function Overview() {
       prof: profitability(ix, filter, 'product'), profPrev: profitability(ix, prev, 'product'),
       top: salesBy(ix, filter, 'product').slice(0, 6).map((r) => ({ ...r, before: prevProducts.get(r.key) ?? null })),
       watch: insights(ix, filter).slice(0, 6),
+      exec: executiveSummary(ix, filter, prev, periodLabel(filter), periodLabel(prev)),
     };
   }, [ix, filter, prev]);
   const { s, sp, st, stp, prof } = m;
@@ -35,11 +38,21 @@ export default function Overview() {
     return [{ label: g.label.replace(' (Opsional)', '').replace('Total Biaya Pengiriman', 'Selisih ongkir').replace('Biaya Gratis Ongkir XTRA', 'Program Gratis Ongkir XTRA').replace('Biaya Layanan', 'Program Promo XTRA'), v: x.total }];
   }).flat().filter((r) => r.v !== 0);
   const base = flow[0]?.v || 1;
+  const trend = bucketize(s.daily, (d) => ({ gmv: d.gmv, orders: d.orders }));
 
   return (
     <>
-      <PageHead eyebrow="Ringkasan" title="Bagaimana toko bulan ini?" />
+      <PageHead eyebrow="Ringkasan" title="Ringkasan Eksekutif" />
       <FilterBar />
+      <div className="exec">
+        <div className="eyebrow">Executive summary · {periodLabel(filter)}</div>
+        <h3>Kondisi toko dalam satu bacaan</h3>
+        {m.exec.map((t, i) => <p key={i}><Inline text={t} /></p>)}
+        <div className="act">
+          <AiButton className="btn pri" cacheKey={`overview|${filter.from}|${filter.to}|${prev.from}`} title={`Analisis AI — ${periodLabel(filter)}`} task={AI_TASK.overview}
+            build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), 'overview')} />
+        </div>
+      </div>
       <div className="kpis k4">
         <Kpi dark icon={<ShoppingBag className="ic" />} label="Omzet" value={rpShort(s.gmv)} sub={<Delta dark now={s.gmv} before={sp.gmv} />}
           formula="Σ (harga setelah diskon × jumlah) semua item pesanan selesai pada periode, menurut tanggal pesanan selesai." />
@@ -54,8 +67,8 @@ export default function Overview() {
       </div>
 
       <div className="g21">
-        <Panel title="Omzet harian" sub="Arahkan kursor ke batang untuk melihat nilainya">
-          <TimeChart data={s.daily} value={(d) => d.gmv} format={rp} label="Omzet" height={230} />
+        <Panel title={`Omzet ${trend.unit}`} sub="Arahkan kursor ke batang untuk melihat nilainya">
+          <TimeChart data={trend.rows} value={(d) => d.gmv} format={rp} label="Omzet" height={230} />
         </Panel>
         <Panel title="Yang perlu diperhatikan" sub="Dibaca otomatis dari data periode ini">
           <ul className="watch">

@@ -2,13 +2,12 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingUp, Wallet, Boxes } from 'lucide-react';
 import { useData } from '../data';
-import { FilterBar } from '../components/FilterBar';
-import { DataTable, Kpi, PageHead, Tabs, num, pct, rp, rpShort, type Col } from '../components/ui';
+import { Chips, DataTable, Kpi, num, pct, rp, rpShort, type Col } from '../components/ui';
 import { profitability, type ProfitRow } from '../lib/metrics/analytics';
 
 type By = 'product' | 'brand' | 'category';
 
-export default function Profitability() {
+export function ProfitPanel() {
   const { ix, filter } = useData();
   const [by, setBy] = useState<By>('product');
   const p = useMemo(() => profitability(ix, filter, by), [ix, filter, by]);
@@ -24,8 +23,6 @@ export default function Profitability() {
   ];
   return (
     <>
-      <PageHead eyebrow="Keuangan" title="Produk mana yang paling untung?" actions={<Link className="btn" to="/master"><Boxes className="ic" />Isi HPP</Link>} />
-      <FilterBar />
       {t.coverage !== null && t.coverage < 1 && (
         <div className="info-box" style={{ marginBottom: 14, marginTop: 0 }}>
           {t.coverage ? `HPP baru tersedia untuk ${pct(t.coverage, 0)} item terjual.` : 'Belum ada HPP produk.'} Laba hanya dihitung untuk produk yang sudah punya HPP. <Link to="/master">Lengkapi HPP</Link>
@@ -36,7 +33,7 @@ export default function Profitability() {
         <Kpi icon={<Wallet className="ic" />} label="Dana diterima" value={rpShort(t.net)} sub={<div className="hint">{num(t.settledOrders)} pesanan sudah dilepas · {num(t.unsettledOrders)} belum</div>} formula="Dana per pesanan dibagi ke item sesuai porsi subtotal item." />
         <Kpi icon={<Boxes className="ic" />} label="Total HPP" value={t.coverage ? rpShort(t.cogs) : <span className="na">–</span>} sub={<div className="hint">HPP unit × isi paket × jumlah</div>} />
       </div>
-      <Tabs value={by} onChange={setBy} items={[{ key: 'product', label: 'Produk' }, { key: 'brand', label: 'Brand' }, { key: 'category', label: 'Kategori' }]} />
+      <div style={{ marginBottom: 10 }}><Chips value={by} onChange={setBy} items={[{ key: 'product', label: 'Per produk' }, { key: 'brand', label: 'Per brand' }, { key: 'category', label: 'Per kategori' }]} /></div>
       <DataTable rows={p.rows} cols={cols} initialSort={{ key: t.coverage ? 'p' : 'n', dir: -1 }} csvName={`laba-${by}-${filter.from}-${filter.to}`} />
     </>
   );

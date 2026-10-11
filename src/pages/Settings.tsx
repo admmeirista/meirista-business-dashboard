@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Upload, Trash2, EyeOff, ExternalLink } from 'lucide-react';
+import { Download, Upload, Trash2, EyeOff, ExternalLink, Sparkles, Eye } from 'lucide-react';
+import { AI_MODELS, aiSettings, testConnection, type AiModel } from '../lib/ai';
 import { useData } from '../data';
 import { db } from '../lib/db';
 import { backupFileName, createBackup, restoreBackup } from '../lib/backup';
@@ -10,7 +11,7 @@ import { DriveBackupCard } from '../components/DriveBackup';
 import { PageHead, Panel, Tabs, downloadBlob, num, toast } from '../components/ui';
 import { FormulasPanel } from './Formulas';
 
-type Tab = 'general' | 'backup' | 'formulas';
+type Tab = 'general' | 'backup' | 'ai' | 'formulas';
 
 export default function Settings() {
   const [params, setParams] = useSearchParams();
@@ -18,9 +19,10 @@ export default function Settings() {
   return (
     <>
       <PageHead eyebrow="Data" title="Pengaturan" />
-      <Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={[{ key: 'general', label: 'Umum' }, { key: 'backup', label: 'Backup & Google Drive' }, { key: 'formulas', label: 'Cara perhitungan' }]} />
+      <Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={[{ key: 'general', label: 'Umum' }, { key: 'backup', label: 'Backup & Google Drive' }, { key: 'ai', label: 'AI' }, { key: 'formulas', label: 'Cara perhitungan' }]} />
       {tab === 'general' && <General />}
       {tab === 'backup' && <Backup />}
+      {tab === 'ai' && <AiSettings />}
       {tab === 'formulas' && <FormulasPanel />}
     </>
   );
@@ -104,6 +106,59 @@ function Backup() {
           {driveSettings.clientId() && <button className="btn ghost" onClick={() => { disconnect(); toast('Sesi Google Drive diputus', 'ok'); }}>Putuskan sesi</button>}
         </div>
         <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>Izin yang diminta hanya <span className="mono">drive.file</span>: aplikasi hanya bisa membaca file backup yang dibuatnya sendiri, bukan isi Drive lainnya.</p>
+      </Panel>
+    </div>
+  );
+}
+
+function AiSettings() {
+  const [key, setKey] = useState(aiSettings.apiKey());
+  const [model, setModel] = useState<AiModel>(aiSettings.model());
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const save = () => { aiSettings.setApiKey(key); aiSettings.setModel(model); toast('Pengaturan AI disimpan', 'ok'); };
+  const test = async () => {
+    save();
+    setBusy(true); setStatus(null);
+    try { setStatus({ ok: true, text: `Terhubung — model ${await testConnection()} siap dipakai.` }); }
+    catch (e) { setStatus({ ok: false, text: (e as Error).message }); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="g2" style={{ alignItems: 'start' }}>
+      <Panel title="Koneksi AI (Claude · Anthropic)" sub="Dipakai tombol “Analisis dengan AI” di Ringkasan, Penjualan, Retur, dan Biaya">
+        <label className="f">API key Anthropic</label>
+        <div className="row" style={{ flexWrap: 'nowrap' }}>
+          <input className="in full mono" type={show ? 'text' : 'password'} placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" spellCheck={false} />
+          <button className="btn" onClick={() => setShow(!show)} aria-label="Tampilkan">{show ? <EyeOff className="ic" /> : <Eye className="ic" />}</button>
+        </div>
+        <label className="f">Model</label>
+        <select className="in full" value={model} onChange={(e) => setModel(e.target.value as AiModel)}>
+          {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </select>
+        <div className="row" style={{ marginTop: 16 }}>
+          <button className="btn pri" onClick={save}>Simpan</button>
+          <button className={`btn${busy ? ' busy' : ''}`} onClick={test} disabled={!key}><Sparkles className="ic" />Tes koneksi</button>
+          {aiSettings.apiKey() && <button className="btn ghost" onClick={() => { aiSettings.setApiKey(''); setKey(''); setStatus(null); toast('API key dihapus', 'ok'); }}>Hapus key</button>}
+        </div>
+        {status && <div className={status.ok ? 'ok-box' : 'err-box'}>{status.text}</div>}
+      </Panel>
+      <Panel title="Cara mendapatkan API key">
+        <ol style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 13, lineHeight: 1.8, color: '#4e5751' }}>
+          <li>Buka <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com <ExternalLink className="ic" style={{ width: 12 }} /></a> dan login.</li>
+          <li>Isi saldo/billing di menu <b>Billing</b> (biaya dihitung per pemakaian).</li>
+          <li><b>API Keys → Create Key</b>, beri nama mis. “Meirista BI”, salin key (diawali <span className="mono">sk-ant-</span>).</li>
+          <li>Tempel di kolom sebelah, klik <b>Tes koneksi</b>.</li>
+        </ol>
+        <div className="info-box" style={{ display: 'block' }}>
+          <b>Privasi & keamanan</b>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontWeight: 500 }}>
+            <li>API key hanya disimpan di browser ini dan dikirim langsung ke Anthropic — tidak ke GitHub atau server lain.</li>
+            <li>Yang dikirim ke AI hanya ringkasan angka (omzet, produk, biaya, retur). Username, alamat, dan No. Pesanan tidak dikirim. Isinya bisa dilihat lewat “Lihat data yang dikirim”.</li>
+            <li>Siapa pun yang memakai browser ini bisa memakai key tersebut. Gunakan key khusus dengan batas pemakaian (spend limit) di console Anthropic.</li>
+          </ul>
+        </div>
       </Panel>
     </div>
   );
