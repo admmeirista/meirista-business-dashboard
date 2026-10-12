@@ -18,7 +18,7 @@ export default function Settings() {
   const tab = (params.get('tab') as Tab) || 'general';
   return (
     <>
-      <PageHead eyebrow="Data" title="Pengaturan" />
+      <PageHead eyebrow="Konfigurasi" title="Pengaturan" />
       <Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={[{ key: 'general', label: 'Umum' }, { key: 'backup', label: 'Backup & Google Drive' }, { key: 'ai', label: 'AI' }, { key: 'formulas', label: 'Cara perhitungan' }]} />
       {tab === 'general' && <General />}
       {tab === 'backup' && <Backup />}

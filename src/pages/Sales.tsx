@@ -2,12 +2,10 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { useData } from '../data';
-import { FilterBar, periodLabel } from '../components/FilterBar';
-import { AiButton } from '../components/Ai';
+import { FilterBar } from '../components/FilterBar';
 import { DataTable, MiniBar, PageHead, Tabs, num, pct, rp, type Col } from '../components/ui';
 import { returnState, salesBy, UNMAPPED, type Dim, type DimRow } from '../lib/metrics/analytics';
 import { ordersIn } from '../lib/metrics/dataset';
-import { AI_TASK, aiPayload } from '../lib/metrics/summary';
 import { CustomersPanel } from './Customers';
 import { ProfitPanel } from './Profitability';
 
@@ -23,16 +21,11 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function Sales() {
-  const { ix, filter, prev } = useData();
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'product') as Tab;
   return (
     <>
-      <PageHead eyebrow="Penjualan" title="Apa yang laku, di mana, dan oleh siapa?" actions={
-        <AiButton cacheKey={`sales|${filter.from}|${filter.to}|${prev.from}`} title={`Analisis AI penjualan — ${periodLabel(filter)}`} task={AI_TASK.sales}
-          build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), 'sales')} />
-      } />
-      <FilterBar />
+      <PageHead eyebrow="Performa toko" title="Penjualan" actions={<FilterBar />} />
       <Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={TABS} />
       {tab === 'customer' ? <CustomersPanel /> : tab === 'profit' ? <ProfitPanel /> : tab === 'location' ? <LocationPanel /> : <DimPanel dim={tab} />}
     </>

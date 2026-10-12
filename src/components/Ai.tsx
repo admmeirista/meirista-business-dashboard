@@ -1,8 +1,8 @@
-import { Fragment, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { Sparkles, Copy, RotateCcw, Square } from 'lucide-react';
-import { aiConfigured, aiSettings, runAnalysis, providerLabel } from '../lib/ai';
+import { Sparkles, Copy, RotateCcw, Square, SendHorizontal } from 'lucide-react';
+import { aiConfigured, aiSettings, runChat, providerLabel, type ChatTurn } from '../lib/ai';
 import { toast } from './ui';
 
 /** Teks inline: **tebal** → <b>. Aman (tanpa innerHTML). */
@@ -38,54 +38,82 @@ export function Markdown({ text }: { text: string }) {
   return <div className="md">{blocks}</div>;
 }
 
-// Hasil terakhir per (topik, periode) disimpan di memori agar membuka ulang tidak memakan biaya API lagi.
-const cache = new Map<string, string>();
+// Percakapan per (topik, periode) disimpan di memori agar membuka ulang tidak memakai kuota API lagi.
+const cache = new Map<string, ChatTurn[]>();
 
-export function AiButton({ cacheKey, title, task, build, label = 'Analisis dengan AI', className = 'btn ai' }: {
-  cacheKey: string; title: string; task: string; build: () => unknown; label?: string; className?: string;
+export function AiButton({ cacheKey, title, task, build, suggestions = [], label = 'Analisis dengan AI', className = 'btn ai' }: {
+  cacheKey: string; title: string; task: string; build: () => unknown; suggestions?: string[]; label?: string; className?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button className={className} onClick={() => setOpen(true)}><Sparkles className="ic" />{label}</button>
-      {open && createPortal(<AiModal cacheKey={cacheKey} title={title} task={task} build={build} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<AiModal cacheKey={cacheKey} title={title} task={task} build={build} suggestions={suggestions} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
 
-function AiModal({ cacheKey, title, task, build, onClose }: { cacheKey: string; title: string; task: string; build: () => unknown; onClose: () => void }) {
-  const [text, setText] = useState(cache.get(cacheKey) ?? '');
+const FULL = 'Analisis lengkap periode ini';
+
+function AiModal({ cacheKey, title, task, build, suggestions, onClose }: {
+  cacheKey: string; title: string; task: string; build: () => unknown; suggestions: string[]; onClose: () => void;
+}) {
+  const [turns, setTurns] = useState<ChatTurn[]>(cache.get(cacheKey) ?? []);
+  const [draft, setDraft] = useState('');
+  const [streaming, setStreaming] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showData, setShowData] = useState(false);
   const abort = useRef<AbortController | null>(null);
+  const data = useRef<unknown>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const configured = aiConfigured();
   const modelLabel = aiSettings.models().find((m) => m.id === aiSettings.model())?.label ?? aiSettings.model();
+  useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [turns, streaming, err]);
 
-  const run = async () => {
-    setText(''); setErr(null); setBusy(true);
+  const send = async (question: string) => {
+    const q = question.trim();
+    if (!q || busy) return;
+    // Data agregat dibekukan pada pesan pertama, agar seluruh percakapan memakai angka yang sama.
+    if (!turns.length || data.current === null) data.current = build();
+    const before = turns;
+    const next: ChatTurn[] = [...turns, { role: 'user', text: q }];
+    setTurns(next); setDraft(''); setErr(null); setBusy(true); setStreaming('');
     abort.current = new AbortController();
     let acc = '';
     try {
-      const r = await runAnalysis(task, build(), (t) => { acc += t; setText(acc); }, abort.current.signal);
-      cache.set(cacheKey, r.text);
-      setText(r.text);
+      const r = await runChat(next, data.current, (t) => { acc += t; setStreaming(acc); }, abort.current.signal);
+      const done: ChatTurn[] = [...next, { role: 'model', text: r.text }];
+      setTurns(done); cache.set(cacheKey, done);
       if (r.stop === 'max_tokens') setErr('Jawaban terpotong karena terlalu panjang.');
     } catch (e) {
       setErr((e as Error).message);
+      if (acc) { const partial: ChatTurn[] = [...next, { role: 'model', text: acc }]; setTurns(partial); cache.set(cacheKey, partial); }
+      else { setTurns(before); setDraft(q); } // pertanyaan dikembalikan agar bisa dikirim ulang
     } finally {
-      setBusy(false);
+      setBusy(false); setStreaming('');
     }
   };
+  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(draft); }
+  };
+  const reset = () => { abort.current?.abort(); setTurns([]); cache.delete(cacheKey); data.current = null; setErr(null); };
   const close = () => { abort.current?.abort(); onClose(); };
+  const lastAnswer = [...turns].reverse().find((t) => t.role === 'model')?.text;
 
   return (
     <div className="modal-bg" onClick={close}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ marginBottom: 10 }}>
+      <div className="modal wide ai-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ai-head">
           <Sparkles className="ic" style={{ color: 'var(--acc)' }} />
-          <h3 style={{ margin: 0 }}>{title}</h3>
-          {configured && <span className="tag" style={{ marginLeft: 'auto' }}>{modelLabel}</span>}
+          <div className="grow">
+            <h3 style={{ margin: 0 }}>{title}</h3>
+            <div className="muted" style={{ fontSize: 12 }}>{providerLabel}{configured ? ` · ${modelLabel}` : ''}</div>
+          </div>
+          {turns.length > 0 && <button className="btn sm ghost" onClick={reset} disabled={busy}><RotateCcw className="ic" />Percakapan baru</button>}
+          <button className="btn sm ghost" onClick={close} aria-label="Tutup">✕</button>
         </div>
         {!configured ? (
           <div className="info-box" style={{ display: 'block' }}>
@@ -93,29 +121,42 @@ function AiModal({ cacheKey, title, task, build, onClose }: { cacheKey: string; 
           </div>
         ) : (
           <>
-            {!text && !busy && !err && (
-              <div className="muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
-                AI akan membaca ringkasan angka periode ini (bukan data pembeli) lalu menulis temuan dan rekomendasi. Pemakaian dihitung sesuai kuota/paket Gemini API Anda.
-              </div>
-            )}
-            <div className="ai-out">
-              {text && <Markdown text={text} />}
-              {busy && !text && <div className="loading"><span className="spinner" />AI sedang menganalisis…</div>}
-              {busy && text && <span className="ai-cursor" />}
+            <div className="ai-thread" ref={scroller}>
+              {!turns.length && !busy && (
+                <div className="ai-empty">
+                  <div className="muted" style={{ fontSize: 13 }}>Tanyakan apa saja tentang data periode ini, atau pilih salah satu:</div>
+                  <div className="ai-sugg">
+                    <button onClick={() => send(task)}><Sparkles className="ic" />{FULL}</button>
+                    {suggestions.map((q) => <button key={q} onClick={() => send(q)}>{q}</button>)}
+                  </div>
+                </div>
+              )}
+              {turns.map((t, i) => (t.role === 'user'
+                ? <div key={i} className="msg u">{t.text === task ? FULL : t.text}</div>
+                : <div key={i} className="msg m"><Markdown text={t.text} /></div>))}
+              {busy && (
+                <div className="msg m">
+                  {streaming ? <><Markdown text={streaming} /><span className="ai-cursor" /></> : <span className="loading" style={{ padding: 0 }}><span className="spinner" />Menganalisis…</span>}
+                </div>
+              )}
+              {err && <div className="err-box">{err}</div>}
             </div>
-            {err && <div className="err-box">{err}</div>}
-            <div className="row" style={{ marginTop: 14 }}>
+            <div className="ai-input">
+              <textarea ref={input} className="in" rows={2} placeholder="Tulis pertanyaan, mis. Produk apa yang sebaiknya dipromosikan bulan depan?"
+                value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} disabled={busy} />
               {busy
-                ? <button className="btn" onClick={() => abort.current?.abort()}><Square className="ic" />Hentikan</button>
-                : <button className="btn pri" onClick={run}>{text ? <><RotateCcw className="ic" />Analisis ulang</> : <><Sparkles className="ic" />Mulai analisis</>}</button>}
-              {text && !busy && <button className="btn" onClick={() => { void navigator.clipboard?.writeText(text).then(() => toast('Disalin', 'ok')); }}><Copy className="ic" />Salin</button>}
-              <button className="link-btn" style={{ marginLeft: 'auto' }} onClick={() => setShowData(!showData)}>{showData ? 'Sembunyikan' : 'Lihat'} data yang dikirim</button>
+                ? <button className="btn" onClick={() => abort.current?.abort()} aria-label="Hentikan"><Square className="ic" /></button>
+                : <button className="btn pri" onClick={() => send(draft)} disabled={!draft.trim()} aria-label="Kirim"><SendHorizontal className="ic" /></button>}
             </div>
-            {showData && <pre className="json" style={{ maxWidth: 'none', maxHeight: 260, overflow: 'auto', marginTop: 10, background: 'var(--line-2)', padding: 10, borderRadius: 8 }}>{JSON.stringify(build(), null, 2)}</pre>}
-            <div className="muted" style={{ fontSize: 11.5, marginTop: 10 }}>Hasil AI bisa keliru — cek kembali dengan angka di dashboard sebelum mengambil keputusan.</div>
+            <div className="ai-foot">
+              <span>Enter untuk kirim · Shift+Enter baris baru</span>
+              {lastAnswer && !busy && <button className="link-btn" onClick={() => { void navigator.clipboard?.writeText(lastAnswer).then(() => toast('Jawaban disalin', 'ok')); }}><Copy className="ic" style={{ width: 13 }} />Salin jawaban</button>}
+              <button className="link-btn" onClick={() => setShowData(!showData)}>{showData ? 'Sembunyikan' : 'Lihat'} data yang dikirim</button>
+            </div>
+            {showData && <pre className="json ai-data">{JSON.stringify(data.current ?? build(), null, 2)}</pre>}
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>Hanya ringkasan angka yang dikirim (tanpa username, alamat, atau No. Pesanan). Hasil AI bisa keliru — cek kembali dengan angka di dashboard.</div>
           </>
         )}
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={close}>Tutup</button></div>
       </div>
     </div>
   );

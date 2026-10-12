@@ -29,7 +29,8 @@ Aturan:
 - Gunakan HANYA angka yang ada di data JSON. Jangan mengarang angka, tren, atau penyebab yang tidak didukung data; bila menduga penyebab, sebut sebagai dugaan.
 - Tulis nominal Rupiah ringkas (mis. Rp 12,3 jt, Rp 1,2 M) dan persentase dengan satu desimal.
 - Perhatikan catatan data (data_notes): periode yang datanya belum lengkap jangan disimpulkan sebagai penurunan penjualan.
-- Format Markdown sederhana persis dengan judul berikut:
+- Untuk pertanyaan spesifik dari pengguna, jawab langsung dan ringkas (boleh pakai butir), tanpa format laporan.
+- Untuk permintaan analisis umum, pakai format Markdown sederhana dengan judul berikut:
 ## Ringkasan
 (2–3 kalimat inti)
 ## Temuan utama
@@ -61,13 +62,22 @@ async function request(path: string, init: RequestInit = {}, signal?: AbortSigna
   throw new AiError(`Gemini API error ${r.status}: ${msg || r.statusText}`);
 }
 
-/** Jalankan analisis dengan streaming (SSE). onText dipanggil setiap potongan teks diterima. */
-export async function runAnalysis(task: string, data: unknown, onText: (chunk: string) => void, signal?: AbortSignal): Promise<AiRun> {
+export interface ChatTurn { role: 'user' | 'model'; text: string }
+
+/**
+ * Percakapan dengan streaming (SSE). Data agregat disisipkan di pesan pertama pengguna;
+ * pertanyaan lanjutan memakai konteks percakapan yang sama.
+ */
+export async function runChat(turns: ChatTurn[], data: unknown, onText: (chunk: string) => void, signal?: AbortSignal): Promise<AiRun> {
   const model = aiSettings.model();
   const limit = aiSettings.models().find((m) => m.id === model)?.outputLimit;
+  const contents = turns.map((t, i) => ({
+    role: t.role,
+    parts: [{ text: i === 0 ? `${t.text}\n\nData toko (agregat, periode terpilih):\n<data>\n${JSON.stringify(data)}\n</data>` : t.text }],
+  }));
   const body = {
     systemInstruction: { parts: [{ text: SYSTEM }] },
-    contents: [{ role: 'user', parts: [{ text: `${task}\n\n<data>\n${JSON.stringify(data)}\n</data>` }] }],
+    contents,
     generationConfig: { temperature: 0.4, maxOutputTokens: Math.min(limit ?? 8192, 16384) },
   };
   const r = await request(`/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, { method: 'POST', body: JSON.stringify(body) }, signal);

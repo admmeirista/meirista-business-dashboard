@@ -1,16 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Undo2, Wallet, Percent } from 'lucide-react';
 import { useData } from '../data';
-import { FilterBar, periodLabel } from '../components/FilterBar';
-import { AiButton } from '../components/Ai';
-import { AI_TASK, aiPayload } from '../lib/metrics/summary';
+import { FilterBar } from '../components/FilterBar';
 import { BarList } from '../components/charts';
 import { DataTable, Kpi, PageHead, Panel, maskName, num, pct, rp, rpShort, dt, type Col } from '../components/ui';
 import { RETURN_STATE_LABEL, returnState, returnsAnalysis } from '../lib/metrics/analytics';
 import type { ReturnRequest } from '../lib/types';
 
 export default function Returns() {
-  const { ix, filter, prev, mask } = useData();
+  const { ix, filter, mask } = useData();
   const [open, setOpen] = useState<string | null>(null);
   const a = useMemo(() => returnsAnalysis(ix, filter, 'requested'), [ix, filter]);
   const sel = open ? ix.ds.returns.find((r) => r.returnNo === open) : null;
@@ -26,11 +24,7 @@ export default function Returns() {
 
   return (
     <>
-      <PageHead eyebrow="Retur" title="Apa yang dikembalikan & kenapa?" actions={
-        <AiButton cacheKey={`returns|${filter.from}|${filter.to}`} title={`Analisis AI retur — ${periodLabel(filter)}`} task={AI_TASK.returns}
-          build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), 'returns')} />
-      } />
-      <FilterBar note="Menurut tanggal pengajuan pengembalian" />
+      <PageHead eyebrow="Performa toko" title="Retur" actions={<FilterBar note="per tanggal pengajuan retur" />} />
       {!ix.ds.returns.length && <div className="info-box" style={{ marginBottom: 14 }}>Belum ada laporan Pengembalian yang diimport.</div>}
       <div className="kpis">
         <Kpi dark icon={<Undo2 className="ic" />} label="Pengajuan" value={num(a.requests)} sub={<div className="hint">{num(a.valid)} diproses · {num(a.requests - a.valid)} batal/ditolak</div>} formula="Per No. Pengembalian. Satu pesanan bisa punya beberapa pengajuan." />

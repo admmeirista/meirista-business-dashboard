@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Info as InfoIcon, CheckCircle2, XCircle, CircleHelp } from 'lucide-react';
 
 // ───────── format ─────────
@@ -21,8 +22,26 @@ export const dShort = (s: string) => new Date(s + 'T00:00:00').toLocaleDateStrin
 export const maskName = (s: string, on: boolean) => (!on || s.length <= 3 ? s : s.slice(0, 2) + '•'.repeat(Math.min(6, s.length - 3)) + s.slice(-1));
 
 // ───────── komponen kecil ─────────
+/**
+ * Ikon (?) dengan penjelasan. Popup dirender di document.body (posisi fixed) agar tidak terpotong
+ * oleh kartu yang memakai overflow:hidden, dan otomatis bergeser agar tetap di dalam layar.
+ */
 export function Info({ children }: { children: ReactNode }) {
-  return <span className="qtip" tabIndex={0}><CircleHelp className="ic" /><span className="tip">{children}</span></span>;
+  const ref = useRef<HTMLSpanElement>(null);
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+  const show = () => {
+    const r = ref.current!.getBoundingClientRect();
+    const w = Math.min(320, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12));
+    const below = r.bottom + 200 < window.innerHeight;
+    setStyle(below ? { left, width: w, top: r.bottom + 8 } : { left, width: w, bottom: window.innerHeight - r.top + 8 });
+  };
+  return (
+    <span ref={ref} className="qtip" tabIndex={0} aria-label="Penjelasan" onMouseEnter={show} onMouseLeave={() => setStyle(null)} onFocus={show} onBlur={() => setStyle(null)}>
+      <CircleHelp className="ic" />
+      {style && createPortal(<div className="qtip-pop" style={style} role="tooltip">{children}</div>, document.body)}
+    </span>
+  );
 }
 
 export function PageHead({ eyebrow, title, actions, children }: { eyebrow: string; title: string; actions?: ReactNode; children?: ReactNode }) {

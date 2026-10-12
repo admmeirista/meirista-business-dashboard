@@ -17,39 +17,47 @@ const nm = (s: string) => { const x = s.replace(/^\[[^\]]*\]\s*/, '').split('/')
 const change = (a: number, b: number) => (b ? (a - b) / Math.abs(b) : null);
 const dir = (c: number | null) => (c === null ? '' : Math.abs(c) < 0.005 ? 'stabil' : c > 0 ? `naik ${pct(c)}` : `turun ${pct(-c)}`);
 
-/** Kalimat ringkasan eksekutif. Penanda **…** ditebalkan saat ditampilkan. */
-export function executiveSummary(ix: Index, f: Filter, prev: Filter, label: string, prevLabel: string): string[] {
+/** "JAWA BARAT" → "Jawa Barat", "DKI JAKARTA" tetap "DKI Jakarta". */
+const titleCase = (s: string) => s.toLowerCase().replace(/\b\p{L}/gu, (x) => x.toUpperCase()).replace(/\bDki\b/, 'DKI').replace(/\bDi\b/, 'DI');
+
+export interface SummaryPoint { key: string; label: string; text: string; tone: 'up' | 'down' | 'warn' | 'neutral' }
+
+/** Poin ringkasan eksekutif: satu baris singkat per topik. Penanda **…** ditebalkan saat ditampilkan. */
+export function executiveSummary(ix: Index, f: Filter, prev: Filter, label: string, prevLabel: string): SummaryPoint[] {
   const s = salesSummary(ix, f), sp = salesSummary(ix, prev);
-  if (!s.orders) return [`Belum ada pesanan pada **${label}**. Pilih periode lain atau import laporan Pesanan Selesai periode ini.`];
-  const out: string[] = [];
+  if (!s.orders) return [{ key: 'empty', label: 'Data', text: `Belum ada pesanan pada **${label}**.`, tone: 'warn' }];
+  const out: SummaryPoint[] = [];
   const c = change(s.gmv, sp.gmv);
-  out.push(`Pada **${label}**, toko mencatat omzet **${rp(s.gmv)}** dari **${num(s.orders)} pesanan** (${num(s.units)} unit, rata-rata ${rp(s.aov ?? 0)} per pesanan)` +
-    (sp.orders ? `, ${dir(c)} dibanding ${prevLabel} (${rp(sp.gmv)}).` : '. Belum ada data pembanding untuk periode sebelumnya.'));
+  out.push({ key: 'sales', label: 'Omzet', tone: c === null ? 'neutral' : c >= 0 ? 'up' : 'down',
+    text: `**${rp(s.gmv)}** dari ${num(s.orders)} pesanan${sp.orders ? ` · ${dir(c)} vs ${prevLabel}` : ''}` });
 
   const prod = salesBy(ix, f, 'product');
   const top5 = prod.slice(0, 5).reduce((t, r) => t + r.share, 0);
-  if (prod[0]) out.push(`Produk terlaris adalah **${nm(prod[0].label)}** (${rp(prod[0].gmv)}, ${pct(prod[0].share)} omzet); lima produk teratas menyumbang **${pct(top5)}** omzet${top5 > 0.6 ? ' — ketergantungan pada sedikit produk cukup tinggi' : ''}.`);
+  if (prod[0]) out.push({ key: 'product', label: 'Produk', tone: top5 > 0.6 ? 'warn' : 'neutral',
+    text: `**${nm(prod[0].label)}** ${pct(prod[0].share)} omzet · 5 teratas ${pct(top5)}` });
 
   const pay = salesBy(ix, f, 'payment'), prov = salesBy(ix, f, 'province');
-  const ret = retention(ix, f);
-  out.push(`Pembayaran didominasi **${pay[0]?.label ?? '–'}** (${pct(pay[0]?.share ?? null)}), wilayah terbesar **${prov[0]?.label ?? '–'}** (${pct(prov[0]?.share ?? null)}). Ada ${num(ret.buyers)} pembeli, **${pct(ret.repeatRate)}** di antaranya membeli lebih dari sekali.`);
+  out.push({ key: 'channel', label: 'Pembeli', tone: 'neutral',
+    text: `**${pay[0]?.label.replace(/ \(.*\)$/, '') ?? '–'}** ${pct(pay[0]?.share ?? null, 0)} · terbanyak **${titleCase(prov[0]?.label ?? '–')}**` });
 
-  const fs = settlementSummary(ix, f); // pesanan periode ini yang sudah dicairkan
-  if (fs.records) {
-    out.push(`Dari ${num(fs.records)} pesanan periode ini yang sudah dicairkan Shopee, potongan biaya Shopee rata-rata **${pct(fs.feeRate)}** dari harga produk dan dana bersih yang diterima **${rp(fs.totalIncome)}** (${pct(safeDiv(fs.totalIncome, fs.productPrice))} dari harga produk).` +
-      (fs.records < s.orders * 0.9 ? ` ${num(s.orders - fs.records)} pesanan lainnya belum ada di laporan Penghasilan yang diimport.` : ''));
-  } else if (ix.ds.reports.length) {
-    out.push('Pesanan periode ini belum ada di laporan Penghasilan yang diimport, jadi potongan biaya dan dana bersih belum bisa dihitung.');
+  const ret = retention(ix, f);
+  out.push({ key: 'repeat', label: 'Loyalitas', tone: 'neutral', text: `${num(ret.buyers)} pembeli · **${pct(ret.repeatRate)}** beli lagi` });
+
+  const fs = settlementSummary(ix, f);
+  out.push(fs.records
+    ? { key: 'fees', label: 'Biaya', tone: 'neutral', text: `Potongan Shopee **${pct(fs.feeRate)}** · dana bersih ${pct(safeDiv(fs.totalIncome, fs.productPrice), 0)} dari harga` }
+    : { key: 'fees', label: 'Biaya', tone: 'warn', text: 'Belum ada data pencairan untuk pesanan periode ini' });
+
+  if (ix.ds.returns.length) {
+    const ra = returnsAnalysis(ix, f, 'requested');
+    out.push({ key: 'returns', label: 'Retur', tone: (ra.returnRate ?? 0) > 0.03 ? 'warn' : 'neutral',
+      text: `**${pct(ra.returnRate, 2)}** pesanan${ra.byReason[0] ? ` · utama: ${ra.byReason[0].key.toLowerCase().replace(/\.$/, '')}` : ''}` });
   }
 
-  const ra = returnsAnalysis(ix, f, 'requested');
-  if (ix.ds.returns.length) out.push(`Tingkat retur **${pct(ra.returnRate, 2)}** (${num(ra.cohortReturned)} pesanan)${ra.byReason[0] ? `, alasan terbanyak "${ra.byReason[0].key}"` : ''}; uang yang dikembalikan ${rp(ra.refundTotal)}.`);
-
   const pr = profitability(ix, f, 'product');
-  out.push(pr.totals.coverage ? `Laba kotor **${rp(pr.totals.profit)}** (margin ${pct(pr.totals.margin)}) dari produk yang sudah memiliki HPP (cakupan ${pct(pr.totals.coverage, 0)}).` : 'Laba belum dapat dihitung karena HPP produk belum diisi.');
-
-  const watch = insights(ix, f).filter((x) => x.level === 'warn' || x.level === 'err').slice(0, 2);
-  if (watch.length) out.push(`Perlu perhatian: ${watch.map((w) => w.title.toLowerCase()).join('; ')}.`);
+  out.push(pr.totals.coverage
+    ? { key: 'profit', label: 'Laba', tone: (pr.totals.profit ?? 0) >= 0 ? 'up' : 'down', text: `**${rp(pr.totals.profit)}** · margin ${pct(pr.totals.margin)}` }
+    : { key: 'profit', label: 'Laba', tone: 'warn', text: 'HPP produk belum diisi' });
   return out;
 }
 
@@ -133,4 +141,12 @@ export const AI_TASK: Record<AiTopic, string> = {
   sales: 'Analisis penjualan periode ini: produk, brand/kategori, wilayah, metode pembayaran, dan pelanggan. Cari peluang menaikkan omzet.',
   returns: 'Analisis pengembalian/retur periode ini: penyebab utama, produk bermasalah, dan cara menurunkan retur.',
   costs: 'Analisis biaya yang dipotong Shopee dan biaya logistik periode ini: komponen terbesar, perubahan, dan cara menekan biaya.',
+};
+
+/** Contoh pertanyaan yang ditawarkan di jendela AI, per halaman. */
+export const AI_SUGGEST: Record<AiTopic, string[]> = {
+  overview: ['Apa 3 hal terpenting yang harus saya lakukan minggu ini?', 'Kenapa omzet berubah dibanding periode pembanding?', 'Produk mana yang perlu stok tambahan?'],
+  sales: ['Produk mana yang sebaiknya dipromosikan?', 'Wilayah mana yang paling berpotensi ditingkatkan?', 'Bagaimana cara menaikkan pembeli berulang?'],
+  returns: ['Apa penyebab utama retur?', 'Produk mana yang paling bermasalah dan apa solusinya?'],
+  costs: ['Biaya apa yang paling besar dan bisa ditekan?', 'Apakah program Gratis Ongkir XTRA masih menguntungkan?', 'Jasa kirim mana yang paling efisien?'],
 };

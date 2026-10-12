@@ -3,12 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Receipt, Truck, Wallet, Scale } from 'lucide-react';
 import { useData, monthRange } from '../data';
 import { FilterBar, periodLabel, monthLabel } from '../components/FilterBar';
-import { AiButton } from '../components/Ai';
 import { DataTable, Delta, Kpi, PageHead, Panel, Tabs, num, pct, rp, rpShort, dt } from '../components/ui';
 import { settlementSummary, type SettlementSummary } from '../lib/metrics/analytics';
 import { MARKETPLACE_FEE_GROUPS } from '../lib/fees';
 import { day, incomeOrdersIn, inRange } from '../lib/metrics/dataset';
-import { AI_TASK, aiPayload } from '../lib/metrics/summary';
 
 type Tab = 'fees' | 'logistics' | 'adjustments' | 'trend';
 
@@ -26,11 +24,7 @@ export default function Fees() {
 
   return (
     <>
-      <PageHead eyebrow="Biaya" title="Berapa yang dipotong Shopee & logistik?" actions={
-        <AiButton cacheKey={`costs|${filter.from}|${filter.to}|${prev.from}`} title={`Analisis AI biaya — ${periodLabel(filter)}`} task={AI_TASK.costs}
-          build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), 'costs')} />
-      } />
-      <FilterBar note="Semua angka per tanggal dana dilepas Shopee (laporan Penghasilan)" />
+      <PageHead eyebrow="Performa toko" title="Biaya" actions={<FilterBar note="per tanggal dana dilepas Shopee" />} />
       {!ix.ds.reports.length && <div className="warn-box" style={{ marginBottom: 14, marginTop: 0 }}>Belum ada laporan Penghasilan. Import file Income.sudah dilepas.*.xlsx.</div>}
       {ix.ds.reports.length > 0 && !s.records && <div className="info-box" style={{ marginBottom: 14, marginTop: 0 }}>Tidak ada dana yang dilepas Shopee pada {periodLabel(filter)}. Laporan yang diimport: {ix.ds.reports.map((r) => `${r.from} s/d ${r.to}`).join(', ')}.</div>}
       <div className="kpis k4">

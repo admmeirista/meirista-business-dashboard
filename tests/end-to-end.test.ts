@@ -125,8 +125,8 @@ describe.skipIf(!hasFixtures)('Ringkasan eksekutif & paket AI', () => {
     const f = { basis: 'created' as const, from: '2026-06-01', to: '2026-06-30' };
     const prev = { basis: 'created' as const, from: '2026-05-01', to: '2026-05-31' };
     const lines = executiveSummary(ix2, f, prev, 'Juni 2026', 'Mei 2026');
-    expect(lines[0]).toContain('**9.322 pesanan**');
-    expect(lines.join(' ')).toContain('HPP produk belum diisi');
+    expect(lines[0].text).toContain('9.322 pesanan');
+    expect(lines.find((l) => l.key === 'profit')!.text).toContain('HPP produk belum diisi');
     for (const topic of ['overview', 'sales', 'returns', 'costs'] as const) {
       const json = JSON.stringify(aiPayload(ix2, f, prev, 'Juni 2026', 'Mei 2026', topic));
       // Tidak ada username pembeli maupun No. Pesanan di paket AI.

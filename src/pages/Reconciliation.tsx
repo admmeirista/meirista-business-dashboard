@@ -33,7 +33,7 @@ export default function Reconciliation() {
 
   return (
     <>
-      <PageHead eyebrow="Keuangan" title="Apakah semua uang sudah masuk?" actions={
+      <PageHead eyebrow="Konfigurasi" title="Rekonsiliasi" actions={
         <form className="row" onSubmit={(e) => { e.preventDefault(); if (q.trim()) setOrderNo(q.trim().toUpperCase()); }}>
           <input className="in" placeholder="Cari No. Pesanan" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} />
           <button className="btn"><Search className="ic" />Cari</button>

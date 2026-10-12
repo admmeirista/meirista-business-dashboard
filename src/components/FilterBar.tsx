@@ -51,17 +51,12 @@ export function FilterBar({ note }: { note?: string }) {
   ] : [];
 
   return (
-    <div className="fbar" ref={ref}>
+    <div className="pbar" ref={ref}>
       <div className="pp">
         <button className="btn sm ghost" onClick={() => setPeriod(stepPeriod(filter, -1))} aria-label="Periode sebelumnya"><ChevronLeft className="ic" /></button>
-        <button className="pp-btn" onClick={() => setOpen(!open)}><CalendarDays className="ic" /><span>{periodLabel(filter)}</span><ChevronDown className="ic" /></button>
+        <button className="pp-btn" onClick={() => setOpen(!open)} title={typeof note === 'string' ? note : `Omzet per tanggal ${BASIS_LABEL[filter.basis].toLowerCase()} · pembanding ${periodLabel(prev)}`}><CalendarDays className="ic" /><span>{periodLabel(filter)}</span><ChevronDown className="ic" /></button>
         <button className="btn sm ghost" onClick={() => setPeriod(stepPeriod(filter, 1))} aria-label="Periode berikutnya"><ChevronRight className="ic" /></button>
       </div>
-      <select className="in" value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)} aria-label="Pembanding">
-        <option value="prev">vs periode sebelumnya</option>
-        <option value="yoy">vs tahun lalu</option>
-      </select>
-      <span className="fnote">{note ?? <>Omzet per tanggal <b>{BASIS_LABEL[filter.basis].toLowerCase()}</b> · pembanding {periodLabel(prev)}</>}</span>
 
       {open && (
         <div className="pp-pop">
@@ -118,7 +113,15 @@ export function FilterBar({ note }: { note?: string }) {
                 </div>
               </div>
             )}
-            <div className="muted" style={{ fontSize: 11.5, marginTop: 12 }}>Angka kecil = jumlah pesanan yang sudah diimport.</div>
+            <div className="pp-foot">
+              <label>Bandingkan dengan
+                <select className="in" value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)}>
+                  <option value="prev">Periode sebelumnya</option>
+                  <option value="yoy">Periode sama tahun lalu</option>
+                </select>
+              </label>
+              <div className="muted">Pembanding: {periodLabel(prev)} · {note ?? `omzet per tanggal ${BASIS_LABEL[filter.basis].toLowerCase()}`} · angka kecil = jumlah pesanan.</div>
+            </div>
           </div>
         </div>
       )}

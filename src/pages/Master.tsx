@@ -19,7 +19,7 @@ export default function Master() {
   const withCost = ix.ds.products.filter((p) => unitCostAt(ix, p.id!, today) !== null).length;
   return (
     <>
-      <PageHead eyebrow="Data" title="Produk & HPP" actions={<MasterExcel />} />
+      <PageHead eyebrow="Konfigurasi" title="Produk & HPP" actions={<MasterExcel />} />
       <div className="lbl-kpi">
         <span className="pill2 acc">Listing terpetakan <b>{num(mapped)}</b> / {num(lst.length)}</span>
         <span className="pill2">Produk <b>{num(ix.ds.products.length)}</b></span>

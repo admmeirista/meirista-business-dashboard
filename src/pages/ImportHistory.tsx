@@ -17,7 +17,7 @@ export function ImportHistoryPanel() {
   };
   return (
     <>
-      <DataTable rows={ix.ds.batches} empty="Belum ada import." cols={[
+      <DataTable rows={ix.ds.batches} pageSize={15} empty="Belum ada import." cols={[
         { key: 'id', label: '#', value: (b) => b.id ?? 0, num: true },
         { key: 'w', label: 'Waktu', value: (b) => b.importedAt, render: (b) => new Date(b.importedAt).toLocaleString('id-ID') },
         { key: 'k', label: 'Jenis', value: (b) => kindLabel(b.kind) },

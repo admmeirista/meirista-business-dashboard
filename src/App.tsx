@@ -4,7 +4,7 @@ import { LayoutDashboard, ShoppingBag, Undo2, Receipt, Scale, Upload, Boxes, Set
 import { useData } from './data';
 import { AiButton } from './components/Ai';
 import { periodLabel } from './components/FilterBar';
-import { AI_TASK, aiPayload, type AiTopic } from './lib/metrics/summary';
+import { AI_SUGGEST, AI_TASK, aiPayload, type AiTopic } from './lib/metrics/summary';
 import Overview from './pages/Overview';
 import Sales from './pages/Sales';
 import Returns from './pages/Returns';
@@ -103,7 +103,7 @@ function SideAi({ topic, ix, filter, prev }: { topic: AiTopic } & Pick<ReturnTyp
   return (
     <div className="side-ai">
       <AiButton className="btn side-ai-btn" label="Analisis dengan AI" cacheKey={`${topic}|${filter.from}|${filter.to}|${prev.from}`}
-        title={`Analisis AI ${TOPIC_LABEL[topic]} — ${periodLabel(filter)}`} task={AI_TASK[topic]}
+        title={`Analisis AI ${TOPIC_LABEL[topic]} — ${periodLabel(filter)}`} task={AI_TASK[topic]} suggestions={AI_SUGGEST[topic]}
         build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), topic)} />
       <div className="side-ai-sub">{TOPIC_LABEL[topic]} · {periodLabel(filter)}</div>
     </div>

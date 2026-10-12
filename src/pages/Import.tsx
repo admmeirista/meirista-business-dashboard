@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileSpreadsheet, UploadCloud, X, ShieldCheck, CheckCircle2, AlertTriangle, Info as InfoIcon } from 'lucide-react';
+import { UploadCloud, ShieldCheck, CheckCircle2, AlertTriangle, Info as InfoIcon } from 'lucide-react';
 import { db } from '../lib/db';
 import { commitUpload, kindLabel, parseInWorker } from '../lib/importer';
 import type { ImportBatch, ReportKind } from '../lib/types';
@@ -22,7 +22,7 @@ export default function Import() {
   const [tab, setTab] = useState<'import' | 'history'>('import');
   return (
     <>
-      <PageHead eyebrow="Data" title="Import & Backup Data" />
+      <PageHead eyebrow="Konfigurasi" title="Import & Backup Data" />
       <Tabs value={tab} onChange={setTab} items={[{ key: 'import', label: 'Import laporan' }, { key: 'history', label: 'Riwayat import' }]} />
       {tab === 'import' ? <ImportPanel /> : <ImportHistoryPanel />}
     </>
@@ -39,16 +39,17 @@ function ImportPanel() {
   const health = useMemo(() => dataHealth(ix), [ix]);
   useEffect(() => preloadDrive(), []);
 
+  // File langsung diimport begitu ditarik/dipilih — tanpa tombol tambahan.
   const add = (list: FileList | null) => {
-    if (!list) return;
-    const next = [...files];
-    for (const f of Array.from(list)) if (/\.xlsx?$/i.test(f.name) && !next.some((x) => x.name === f.name && x.size === f.size)) next.push(f);
-    setFiles(next);
+    if (!list || busy) return;
+    const picked = Array.from(list).filter((f, i, a) => /\.xlsx?$/i.test(f.name) && a.findIndex((x) => x.name === f.name && x.size === f.size) === i);
+    if (!picked.length) { toast('Pilih file Excel Shopee (.xlsx / .xls)', 'warn'); return; }
+    setFiles(picked);
     setResult(null);
+    void run(picked);
   };
 
-  const run = async () => {
-    if (!files.length) return;
+  const run = async (files: File[]) => {
     // Izin Google Drive diminta di awal klik agar jendelanya tidak diblokir browser.
     const tokP = isConfigured() && driveSettings.auto() ? requestToken(true) : null;
     tokP?.catch(() => {});
@@ -83,15 +84,15 @@ function ImportPanel() {
     <div className="imp">
       <div className="stack">
         <div
-          className={`drop${over ? ' over' : ''}`}
-          onClick={() => input.current?.click()}
+          className={`drop${over ? ' over' : ''}${busy ? ' disabled' : ''}`}
+          onClick={() => !busy && input.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setOver(true); }}
           onDragLeave={() => setOver(false)}
           onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}
         >
           <div className="di"><UploadCloud className="ic" /></div>
           <div className="dt">Tarik file Excel Shopee ke sini</div>
-          <div className="ds">atau <b>klik untuk memilih</b> — boleh banyak file sekaligus</div>
+          <div className="ds">atau <b>klik untuk memilih</b> — import berjalan otomatis, boleh banyak file sekaligus</div>
           <div className="fmt"><span>Order.completed.*.xlsx</span><span>Order.return_refund.*.xls</span><span>Income.sudah dilepas.*.xlsx</span></div>
           <input ref={input} type="file" accept=".xlsx,.xls" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
         </div>
@@ -104,17 +105,11 @@ function ImportPanel() {
               <div className="fs">{(f.size / 1024 / 1024).toFixed(2)} MB · {guessKind(f.name) ? kindLabel(guessKind(f.name)!) : 'Jenis dideteksi dari isi file'}</div>
               {busy && <div className="indet" />}
             </div>
-            {!busy && <button className="btn ghost sm" onClick={() => setFiles(files.filter((x) => x !== f))} aria-label="Hapus"><X className="ic" /></button>}
           </div>
         ))}
-        {files.length > 0 && (
-          <div className="row">
-            <button className={`btn pri${busy ? ' busy' : ''}`} onClick={run} disabled={!!busy}><FileSpreadsheet className="ic" />Import {files.length} file</button>
-            {busy && <span className="muted">{busy}</span>}
-          </div>
-        )}
+        {busy && <div className="row muted"><span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />{busy}</div>}
 
-        {result && <ImportResult r={result} />}
+        {result && <div className="imp-results"><ImportResult r={result} /></div>}
       </div>
 
       <div className="stack">
