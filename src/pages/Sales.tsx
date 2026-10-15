@@ -8,14 +8,16 @@ import { returnState, salesBy, UNMAPPED, type Dim, type DimRow } from '../lib/me
 import { ordersIn } from '../lib/metrics/dataset';
 import { CustomersPanel } from './Customers';
 import { ProfitPanel } from './Profitability';
+import { CancellationsPanel } from './Cancellations';
 
-type Tab = 'product' | 'brand' | 'category' | 'location' | 'payment' | 'customer' | 'profit';
+type Tab = 'product' | 'brand' | 'category' | 'location' | 'payment' | 'customer' | 'cancel' | 'profit';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'product', label: 'Produk' },
   { key: 'brand', label: 'Brand' },
   { key: 'category', label: 'Kategori' },
   { key: 'location', label: 'Lokasi' },
   { key: 'payment', label: 'Pembayaran' },
+  { key: 'cancel', label: 'Pembatalan' },
   { key: 'customer', label: 'Pelanggan' },
   { key: 'profit', label: 'Laba' },
 ];
@@ -27,7 +29,7 @@ export default function Sales() {
     <>
       <PageHead eyebrow="Performa toko" title="Penjualan" actions={<FilterBar />} />
       <Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={TABS} />
-      {tab === 'customer' ? <CustomersPanel /> : tab === 'profit' ? <ProfitPanel /> : tab === 'location' ? <LocationPanel /> : <DimPanel dim={tab} />}
+      {tab === 'cancel' ? <CancellationsPanel /> : tab === 'customer' ? <CustomersPanel /> : tab === 'profit' ? <ProfitPanel /> : tab === 'location' ? <LocationPanel /> : <DimPanel dim={tab} />}
     </>
   );
 }

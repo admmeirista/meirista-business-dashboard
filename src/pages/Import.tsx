@@ -14,7 +14,7 @@ import { DriveBackupCard, backupToDrive } from '../components/DriveBackup';
 import { ImportHistoryPanel } from './ImportHistory';
 
 const guessKind = (n: string): ReportKind | null =>
-  /^Order\.completed\./i.test(n) ? 'completed' : /^Order\.return_refund\./i.test(n) ? 'returns' : /^Income\.sudah dilepas\./i.test(n) ? 'income' : null;
+  /^Order\.completed\./i.test(n) ? 'completed' : /^Order\.all\./i.test(n) ? 'all' : /^Order\.return_refund\./i.test(n) ? 'returns' : /^Income\.sudah dilepas\./i.test(n) ? 'income' : null;
 
 interface Result { batches: ImportBatch[]; parsed: ParsedUpload; skipped: string[]; backup: { ok: boolean; text: string } | null }
 
@@ -93,7 +93,7 @@ function ImportPanel() {
           <div className="di"><UploadCloud className="ic" /></div>
           <div className="dt">Tarik file Excel Shopee ke sini</div>
           <div className="ds">atau <b>klik untuk memilih</b> — import berjalan otomatis, boleh banyak file sekaligus</div>
-          <div className="fmt"><span>Order.completed.*.xlsx</span><span>Order.return_refund.*.xls</span><span>Income.sudah dilepas.*.xlsx</span></div>
+          <div className="fmt"><span>Order.all.*.xlsx</span><span>Order.completed.*.xlsx</span><span>Order.return_refund.*.xls</span><span>Income.sudah dilepas.*.xlsx</span></div>
           <input ref={input} type="file" accept=".xlsx,.xls" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
         </div>
 
@@ -126,7 +126,8 @@ function ImportPanel() {
         <div className="tips">
           <h3 style={{ fontSize: 15 }}>Cara export dari Seller Centre</h3>
           <ol>
-            <li><span><b>Pesanan Selesai</b> — Pesanan Saya › Selesai › Export. Unggah semua part.</span></li>
+            <li><span><b>Semua Pesanan</b> (disarankan) — Pesanan Saya › Semua › Export. Termasuk pesanan batal, sehingga angka Penjualan bisa dicocokkan dengan Seller Centre. Unggah semua part.</span></li>
+            <li><span><b>Pesanan Selesai</b> — Pesanan Saya › Selesai › Export (alternatif bila tidak memakai Semua Pesanan).</span></li>
             <li><span><b>Pengembalian</b> — Pesanan Saya › Pengembalian › Export.</span></li>
             <li><span><b>Penghasilan</b> — Keuangan › Penghasilan Saya › Sudah Dilepas › Export.</span></li>
           </ol>
@@ -186,7 +187,7 @@ function dataHealth(ix: Index): { level: 'ok' | 'warn' | 'info'; text: string; l
   const ds = ix.ds;
   const span = (a: (string | null)[]) => { const d = a.filter(Boolean).sort() as string[]; return d.length ? `${d[0].slice(0, 10)} s/d ${d[d.length - 1].slice(0, 10)}` : '–'; };
   const out: ReturnType<typeof dataHealth> = [];
-  out.push(ds.orders.length ? { level: 'ok', text: `Pesanan Selesai: ${num(ds.orders.length)} pesanan (dikirim ${span(ds.orders.map((o) => o.shippedAt))}).` } : { level: 'warn', text: 'Pesanan Selesai belum diimport.' });
+  out.push(ds.orders.length ? { level: 'ok', text: `Pesanan: ${num(ds.orders.length)} tidak batal${ix.cancelled.length ? ` + ${num(ix.cancelled.length)} batal` : ''} (dikirim ${span(ds.orders.map((o) => o.shippedAt))}).` } : { level: 'warn', text: 'Pesanan Selesai belum diimport.' });
   out.push(ds.reports.length ? { level: 'ok', text: `Penghasilan: ${ds.reports.map((r) => `${r.from} s/d ${r.to}`).join(', ')}.` } : { level: 'warn', text: 'Laporan Penghasilan belum diimport.' });
   out.push(ds.returns.length ? { level: 'ok', text: `Pengembalian: ${num(ds.returns.length)} pengajuan.` } : { level: 'info', text: 'Laporan Pengembalian belum diimport.' });
   const parts = new Map<string, Set<number | null>>();

@@ -13,6 +13,7 @@ export interface FileInfo {
 
 const NAME_RULES: { kind: ReportKind; re: RegExp }[] = [
   { kind: 'completed', re: /^Order\.completed\..*\.xlsx$/i },
+  { kind: 'all', re: /^Order\.all\..*\.xlsx$/i },
   { kind: 'returns', re: /^Order\.return_refund\..*\.xlsx?$/i },
   { kind: 'income', re: /^Income\.sudah dilepas\..*\.xlsx$/i },
 ];
@@ -26,7 +27,8 @@ export function kindFromContent(wb: WorkBook): ReportKind | null {
   for (const n of names.slice(0, 3)) {
     const head = (sheetRows(wb, n)[0] ?? []).map(str);
     if (head.includes('No. Pengembalian') && head.includes('No. Pesanan')) return 'returns';
-    if (head.includes('No. Pesanan') && head.includes('Waktu Pesanan Selesai')) return 'completed';
+    // Export "Semua Pesanan" = kolom Pesanan Selesai + "Alasan Pembatalan".
+    if (head.includes('No. Pesanan') && head.includes('Waktu Pesanan Selesai')) return head.includes('Alasan Pembatalan') ? 'all' : 'completed';
   }
   return null;
 }

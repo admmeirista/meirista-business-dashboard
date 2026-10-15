@@ -5,6 +5,7 @@ import { FEE_GROUPS } from '../fees';
 import { BASIS_LABEL, incomeOrdersIn, orderDate, ordersIn, type Filter, type Index } from './dataset';
 import { profitability, retention, returnsAnalysis, salesBy, salesSummary, settlementSummary, safeDiv } from './analytics';
 import { insights } from './insights';
+import { cancellationAnalysis } from './cancellations';
 
 const rp = (v: number) => {
   const a = Math.abs(v), s = v < 0 ? '−' : '';
@@ -53,6 +54,10 @@ export function executiveSummary(ix: Index, f: Filter, prev: Filter, label: stri
     out.push({ key: 'returns', label: 'Retur', tone: (ra.returnRate ?? 0) > 0.03 ? 'warn' : 'neutral',
       text: `**${pct(ra.returnRate, 2)}** pesanan${ra.byReason[0] ? ` · utama: ${ra.byReason[0].key.toLowerCase().replace(/\.$/, '')}` : ''}` });
   }
+
+  const ca = cancellationAnalysis(ix, f);
+  if (ca.covered && ca.sellerCentre.orders) out.push({ key: 'cancel', label: 'Pembatalan', tone: (ca.cancelRate ?? 0) > 0.1 ? 'warn' : 'neutral',
+    text: `**${pct(ca.cancelRate)}** pesanan batal · ${num(ca.failed.orders)} gagal kirim` });
 
   const pr = profitability(ix, f, 'product');
   out.push(pr.totals.coverage
@@ -121,10 +126,17 @@ export function aiPayload(ix: Index, f: Filter, prev: Filter, label: string, pre
     return [...m.entries()].sort().map(([bulan, v]) => ({ bulan, ...v }));
   };
   const auto = insights(ix, f).map((x) => `${x.title}: ${x.detail}`);
+  const cancel = () => {
+    const c = cancellationAnalysis(ix, f);
+    if (!c.covered) return 'Belum ada export Semua Pesanan untuk periode ini (pembatalan tidak diketahui).';
+    return { penjualan_versi_seller_centre: c.sellerCentre, dibatalkan: c.cancelled, rasio_batal: r4(c.cancelRate), gagal_kirim: c.failed, batal_sebelum_kirim: c.beforeShip,
+      penyebab: c.actors, alasan: top(c.reasons, 10).map((x) => ({ alasan: x.detail, oleh: x.actor, pesanan: x.orders, nilai: x.value })),
+      per_metode_bayar: c.payments.map((x) => ({ metode: x.method, pesanan: x.total, batal: x.cancelled, gagal_kirim: x.failed, rasio: r4(x.rate) })) };
+  };
 
   switch (topic) {
-    case 'overview': return { ...base, per_bulan: monthly(), produk_teratas: products(), provinsi: dim('province', 8), pembayaran: dim('payment', 6), pelanggan: customers(), biaya: fees(), retur: returns(), laba: profit(), temuan_otomatis: auto };
-    case 'sales': return { ...base, per_bulan: monthly(), produk_teratas: products(), brand: dim('brand'), kategori: dim('category'), provinsi: dim('province', 15), pembayaran: dim('payment'), pelanggan: customers(), laba: profit() };
+    case 'overview': return { ...base, per_bulan: monthly(), produk_teratas: products(), provinsi: dim('province', 8), pembayaran: dim('payment', 6), pelanggan: customers(), biaya: fees(), retur: returns(), laba: profit(), pembatalan: cancel(), temuan_otomatis: auto };
+    case 'sales': return { ...base, per_bulan: monthly(), produk_teratas: products(), brand: dim('brand'), kategori: dim('category'), provinsi: dim('province', 15), pembayaran: dim('payment'), pelanggan: customers(), pembatalan: cancel(), laba: profit() };
     case 'returns': return { ...base, retur: returns(), produk_teratas: products() };
     case 'costs': {
       const recs = incomeOrdersIn(ix, { ...f, basis: 'released' });

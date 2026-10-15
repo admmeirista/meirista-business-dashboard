@@ -1,6 +1,6 @@
 // Model data ternormalisasi. Semua nominal dalam Rupiah (number), tanda (+/−) mengikuti laporan Shopee asli.
 
-export type ReportKind = 'completed' | 'returns' | 'income';
+export type ReportKind = 'completed' | 'all' | 'returns' | 'income';
 
 export interface ImportBatch {
   id?: number;
@@ -33,7 +33,8 @@ export interface RawRow {
 // ───────── Pesanan Selesai ─────────
 export interface Order {
   orderNo: string;
-  status: string;
+  status: string; // Selesai, Batal, Dikirim, … (export Semua Pesanan memuat semua status)
+  cancelReason: string;
   resi: string;
   shippingOption: string;
   pickupMode: string;

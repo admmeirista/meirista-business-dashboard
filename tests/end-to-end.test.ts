@@ -14,7 +14,8 @@ import { reconcile } from '../src/lib/metrics/reconcile';
 
 describe.skipIf(!hasFixtures)('End-to-end dengan file asli', () => {
   const db = new BizDb('e2e-' + Date.now());
-  const uploads = () => readdirSync(FIXTURES).filter((f) => /\.xlsx?$/i.test(f)).map((name) => {
+  // Set acuan Juni/Juli (tanpa export Semua Pesanan Agustus — diuji terpisah di order-all.test.ts).
+  const uploads = () => readdirSync(FIXTURES).filter((f) => /\.xlsx?$/i.test(f) && !/^Order\.all\./.test(f)).map((name) => {
     const b = readFileSync(join(FIXTURES, name));
     return { name, buf: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer };
   });
@@ -119,7 +120,7 @@ describe.skipIf(!hasFixtures)('Ringkasan eksekutif & paket AI', () => {
   it('kalimat ringkasan memakai angka asli; paket AI tanpa data pribadi pembeli', async () => {
     const { executiveSummary, aiPayload } = await import('../src/lib/metrics/summary');
     const db2 = new BizDb('sum-' + Date.now());
-    const names = readdirSync(FIXTURES).filter((f) => /\.xlsx?$/i.test(f));
+    const names = readdirSync(FIXTURES).filter((f) => /\.xlsx?$/i.test(f) && !/^Order\.all\./.test(f));
     await commitUpload(db2, await parseUploads(names.map((name) => { const b = readFileSync(join(FIXTURES, name)); return { name, buf: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer }; })));
     const ix2 = buildIndex(await loadDataset(db2));
     const f = { basis: 'created' as const, from: '2026-06-01', to: '2026-06-30' };

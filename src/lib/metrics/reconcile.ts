@@ -80,8 +80,10 @@ export function reconcile(ix: Index) {
       ex.push({ type: 'PAID_DIFF', orderNo: o.orderNo, date: releaseDate, expected: o.totalPayment, actual: paid, diff: paid - o.totalPayment, note: o.paymentMethod });
   }
 
+  const cancelledNos = new Set(ix.cancelled.map((o) => o.orderNo));
   for (const [orderNo, recs] of ix.incomeByOrder) {
-    if (ix.orderByNo.has(orderNo)) continue;
+    // Pesanan batal (mis. gagal kirim) bisa punya record penghasilan berisi biaya — bukan pengecualian.
+    if (ix.orderByNo.has(orderNo) || cancelledNos.has(orderNo)) continue;
     const settled = recs.reduce((s, r) => s + r.amounts['Total Penghasilan'], 0);
     const releaseDate = recs.map((r) => day(r.releaseDate)).filter(Boolean).sort()[0] ?? null;
     rows.push({ orderNo, completedAt: null, gmv: 0, buyerPaid: 0, settled, releaseDate, refundReturns: 0, refundIncome: -recs.reduce((s, r) => s + r.amounts['Jumlah Pengembalian Dana ke Pembeli'], 0), adjustments: 0, status: 'NO_ORDER' });

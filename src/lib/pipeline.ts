@@ -12,7 +12,7 @@ export interface FileResult { name: string; hash: string; size: number; info: Fi
 export interface KindParse<K extends ReportKind = ReportKind> {
   kind: K;
   files: FileResult[];
-  result?: K extends 'completed' ? CompletedParse : K extends 'returns' ? ReturnsParse : IncomeParse;
+  result?: K extends 'completed' | 'all' ? CompletedParse : K extends 'returns' ? ReturnsParse : IncomeParse;
   error?: string;
 }
 
@@ -20,6 +20,7 @@ export interface ParsedUpload {
   files: FileResult[];
   unknown: FileResult[];
   completed?: KindParse<'completed'>;
+  all?: KindParse<'all'>;
   returns?: KindParse<'returns'>;
   income?: KindParse<'income'>;
 }
@@ -27,7 +28,7 @@ export interface ParsedUpload {
 /** Baca & parse semua file unggahan, dikelompokkan per jenis laporan (multi-file per jenis). Murni — dipakai worker & uji. */
 export async function parseUploads(uploads: UploadFile[], skipHashes: Set<string> = new Set()): Promise<ParsedUpload> {
   const out: ParsedUpload = { files: [], unknown: [] };
-  const groups: Record<ReportKind, { src: SourceFile; fr: FileResult }[]> = { completed: [], returns: [], income: [] };
+  const groups: Record<ReportKind, { src: SourceFile; fr: FileResult }[]> = { completed: [], all: [], returns: [], income: [] };
   for (const u of uploads) {
     const hash = await sha256Hex(u.buf);
     let fr: FileResult;
@@ -52,6 +53,7 @@ export async function parseUploads(uploads: UploadFile[], skipHashes: Set<string
     return kp;
   };
   out.completed = run('completed', parseCompleted);
+  out.all = run('all', parseCompleted);
   out.returns = run('returns', parseReturns);
   out.income = run('income', parseIncome);
   return out;

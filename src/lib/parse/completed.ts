@@ -43,7 +43,7 @@ export function parseCompleted(files: SourceFile[]): CompletedParse {
     if (!rows.length) { out.warnings.push(`${f.name}: sheet "${sheet}" kosong.`); continue; }
     headers = uniqueHeaders(rows[0]);
     ix = columnIndex(headers, COMPLETED_REQUIRED, f.name);
-    if (headers.length !== 51) out.warnings.push(`${f.name}: ${headers.length} kolom (format acuan 51 kolom). Kolom wajib tetap lengkap.`);
+    if (headers.length !== 51 && headers.length !== 50) out.warnings.push(`${f.name}: ${headers.length} kolom (format acuan 50–51 kolom). Kolom wajib tetap lengkap.`);
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (isBlankRow(row)) continue;
@@ -106,6 +106,7 @@ export function parseCompleted(files: SourceFile[]): CompletedParse {
     const order: Omit<Order, 'batchId'> = {
       orderNo,
       status: str(g(first, 'Status Pesanan')),
+      cancelReason: str(g(first, 'Alasan Pembatalan')),
       resi: str(g(first, 'No. Resi')),
       shippingOption: str(g(first, 'Opsi Pengiriman')),
       pickupMode: str(g(first, 'Antar ke counter/ pick-up')),
@@ -135,9 +136,13 @@ export function parseCompleted(files: SourceFile[]): CompletedParse {
       city: str(g(first, 'Kota/Kabupaten')),
       province: str(g(first, 'Provinsi')),
       lineCount: items.length,
-      hash: contentHash(lines.map((l) => l.row)),
+      hash: '',
       sourceFile: lines[0].file,
     };
+    // Hash dari data ternormalisasi (bukan baris mentah) agar pesanan yang sama dari export Selesai
+    // maupun Semua Pesanan dikenali sebagai duplikat; berubah hanya bila isinya (mis. status) berubah.
+    const { sourceFile: _src, hash: _h, ...core } = order;
+    order.hash = contentHash({ core, items });
     if (!order.createdAt) out.warnings.push(`Pesanan ${orderNo}: Waktu Pesanan Dibuat kosong/tidak terbaca.`);
     const qtySum = items.reduce((s, i) => s + i.qty, 0);
     if (order.itemCount && qtySum !== order.itemCount) out.warnings.push(`Pesanan ${orderNo}: jumlah item (${qtySum}) ≠ Jumlah Produk di Pesan (${order.itemCount}).`);

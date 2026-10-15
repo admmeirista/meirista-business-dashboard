@@ -3,7 +3,7 @@ import type { ImportBatch, ReportKind } from './types';
 import type { KindParse, ParsedUpload, UploadFile } from './pipeline';
 import type { RawRecord, Rejected, TotalCheck } from './parse/common';
 
-const KIND_LABEL: Record<ReportKind, string> = { completed: 'Pesanan Selesai', returns: 'Pengembalian', income: 'Penghasilan' };
+const KIND_LABEL: Record<ReportKind, string> = { completed: 'Pesanan Selesai', all: 'Semua Pesanan', returns: 'Pengembalian', income: 'Penghasilan' };
 export const kindLabel = (k: ReportKind) => KIND_LABEL[k];
 
 /** Parse di Web Worker (browser). */
@@ -70,7 +70,7 @@ async function partWarnings(db: BizDb, kp: KindParse): Promise<string[]> {
 
 export async function commitUpload(db: BizDb, parsed: ParsedUpload): Promise<ImportBatch[]> {
   const batches: ImportBatch[] = [];
-  const kinds = [parsed.completed, parsed.returns, parsed.income].filter(Boolean) as KindParse[];
+  const kinds = [parsed.completed, parsed.all, parsed.returns, parsed.income].filter(Boolean) as KindParse[];
   for (const kp of kinds) {
     const base: ImportBatch = {
       kind: kp.kind, fileNames: kp.files.map((f) => f.name), fileHashes: kp.files.map((f) => f.hash), importedAt: new Date().toISOString(),
@@ -96,7 +96,7 @@ export async function commitUpload(db: BizDb, parsed: ParsedUpload): Promise<Imp
     await db.transaction('rw', db.tables, async () => {
       const batchId = (base.id = await db.batches.add(base));
       const add = (c: Counts) => { base.inserted += c.inserted; base.updated += c.updated; base.duplicates += c.duplicates; };
-      if (kp.kind === 'completed') {
+      if (kp.kind === 'completed' || kp.kind === 'all') {
         const p = r as NonNullable<ParsedUpload['completed']>['result'] & object;
         const orders = p.orders.map((o) => ({ ...o, batchId }));
         const itemsByOrder = new Map<string, typeof p.items>();

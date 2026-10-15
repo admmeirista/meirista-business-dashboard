@@ -44,7 +44,13 @@ export const inRange = (d: string | null, f: Filter) => !!d && d >= f.from && d 
 
 /** Indeks turunan yang dipakai banyak halaman — dibangun sekali per perubahan data. */
 export interface Index {
+  /** Data untuk analisis penjualan: pesanan BATAL tidak termasuk (orders & items sudah difilter). */
   ds: Dataset;
+  /** Pesanan batal (dari export Semua Pesanan) — untuk analisis pembatalan & angka versi Seller Centre. */
+  cancelled: Order[];
+  cancelledItems: Map<string, OrderItem[]>;
+  /** Apakah periode tertentu tercakup export Semua Pesanan (punya data pembatalan). */
+  allExportRanges: { from: string; to: string }[];
   orderByNo: Map<string, Order>;
   itemsByOrder: Map<string, OrderItem[]>;
   incomeOrders: IncomeRecord[];
@@ -67,7 +73,12 @@ const group = <T>(rows: T[], key: (r: T) => string) => {
   return m;
 };
 
-export function buildIndex(ds: Dataset): Index {
+export const isCancelled = (o: Order) => /^batal/i.test(o.status);
+
+export function buildIndex(raw: Dataset): Index {
+  const cancelled = raw.orders.filter(isCancelled);
+  const cancelledNos = new Set(cancelled.map((o) => o.orderNo));
+  const ds: Dataset = cancelled.length ? { ...raw, orders: raw.orders.filter((o) => !cancelledNos.has(o.orderNo)), items: raw.items.filter((i) => !cancelledNos.has(i.orderNo)) } : raw;
   const incomeOrders = ds.income.filter((r) => r.recordType === 'Order');
   const releaseByOrder = new Map<string, string>();
   for (const r of incomeOrders) {
@@ -84,6 +95,9 @@ export function buildIndex(ds: Dataset): Index {
   dates.sort();
   return {
     ds,
+    cancelled,
+    cancelledItems: group(raw.items.filter((i) => cancelledNos.has(i.orderNo)), (i) => i.orderNo),
+    allExportRanges: raw.files.filter((f) => f.kind === 'all' && f.periodFrom && f.periodTo).map((f) => ({ from: f.periodFrom!, to: f.periodTo! })),
     orderByNo: new Map(ds.orders.map((o) => [o.orderNo, o])),
     itemsByOrder: group(ds.items, (i) => i.orderNo),
     incomeOrders,
