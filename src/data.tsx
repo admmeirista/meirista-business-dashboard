@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db } from './lib/db';
 import { loadDataset } from './lib/load';
+import { monthsWithData } from './lib/coverage';
 import { fetchBundle, forgetKey, loadedBundleAt, loadedBundleId, tryAutoUnlock, unlockWithPassword, type BundleState } from './lib/bundleClient';
 import { buildIndex, emptyDataset, orderDate, type DateBasis, type Filter, type Index } from './lib/metrics/dataset';
 
@@ -24,7 +25,9 @@ interface Ctx {
   setMask: (v: boolean) => void;
   /** Jumlah pesanan per bulan (YYYY-MM) menurut basis omzet. */
   monthCounts: Map<string, number>;
-  months: string[]; // bulan yang punya pesanan, terbaru dulu
+  months: string[]; // bulan yang punya data apa pun (pesanan/retur/penghasilan), terbaru dulu
+  /** Bulan yang punya data apa pun — pemilih periode mengaktifkan bulan ini walau belum ada pesanan. */
+  dataMonths: Set<string>;
   /** Paket data terenkripsi baru yang menunggu password (null = tidak ada / sudah dimuat). */
   pendingBundle: BundleState | null;
   /** Waktu pembuatan paket data yang sedang dipakai perangkat ini. */
@@ -137,20 +140,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     return m;
   }, [ix, basis]);
-  const months = useMemo(() => [...monthCounts.keys()].sort().reverse(), [monthCounts]);
+  const dataMonths = useMemo(() => { const s = monthsWithData(ix); for (const k of monthCounts.keys()) s.add(k); return s; }, [ix, monthCounts]);
+  const months = useMemo(() => [...dataMonths].sort().reverse(), [dataMonths]);
 
   // Default: bulan dengan pesanan terbanyak di antara 3 bulan terakhir yang punya data
   // (export Shopee difilter per tanggal dibuat, jadi bulan paling ujung bisa hanya berisi sisa).
   const effective: Period = useMemo(() => {
     if (period) return period;
-    const recent = months.slice(0, 3).sort((a, b) => (monthCounts.get(b) ?? 0) - (monthCounts.get(a) ?? 0));
+    // Bulan default dipilih dari bulan yang punya pesanan; bila belum ada pesanan sama sekali, bulan data terbaru.
+    const withOrders = months.filter((m) => monthCounts.has(m));
+    const recent = (withOrders.length ? withOrders : months).slice(0, 3).sort((a, b) => (monthCounts.get(b) ?? 0) - (monthCounts.get(a) ?? 0));
     return monthRange(recent[0] ?? new Date().toISOString().slice(0, 7));
   }, [period, months, monthCounts]);
 
   const filter: Filter = useMemo(() => ({ basis: basis === 'released' ? 'shipped' : basis, ...effective }), [basis, effective]);
   const prev: Filter = useMemo(() => ({ ...filter, ...(compare === 'yoy' ? yearAgo(effective) : previousPeriod(effective)) }), [filter, effective, compare]);
   const value: Ctx = {
-    ix, ready, reload, months, monthCounts, pendingBundle, bundleAt, unlock, checkBundle,
+    ix, ready, reload, months, monthCounts, dataMonths, pendingBundle, bundleAt, unlock, checkBundle,
     skipBundle: () => setPendingBundle(null),
     forgetDevice: async () => { await forgetKey(db()); }, mask, basis: filter.basis, filter, prev, compare,
     setPeriod: (p) => { setPeriodState(p); store.set('bi.period', p); },

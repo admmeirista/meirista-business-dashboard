@@ -22,7 +22,7 @@ type Mode = 'month' | 'quarter' | 'year' | 'range';
 
 /** Pemilih periode untuk data multi-tahun: bulan / kuartal / tahun / rentang + preset + pembanding. */
 export function FilterBar({ note }: { note?: string }) {
-  const { filter, prev, setPeriod, monthCounts, months, compare, setCompare } = useData();
+  const { filter, prev, setPeriod, monthCounts, months, dataMonths, compare, setCompare } = useData();
   const [open, setOpen] = useState(false);
   const k = periodKind(filter);
   const [mode, setMode] = useState<Mode>(k.kind === 'custom' ? 'range' : k.kind);
@@ -40,6 +40,8 @@ export function FilterBar({ note }: { note?: string }) {
 
   const pick = (p: Period) => { setPeriod(p); setOpen(false); };
   const count = (from: string, to: string) => [...monthCounts.entries()].filter(([m]) => m >= from.slice(0, 7) && m <= to.slice(0, 7)).reduce((s, [, n]) => s + n, 0);
+  const hasData = (from: string, to: string) => [...dataMonths].some((m) => m >= from.slice(0, 7) && m <= to.slice(0, 7));
+  const small = (n: number, any: boolean) => (n ? n.toLocaleString('id-ID') : any ? 'tanpa pesanan' : '–');
   const latest = months[0];
   const minY = years[0] ?? year, maxY = years[years.length - 1] ?? year;
   const presets: { label: string; p: Period | null }[] = latest ? [
@@ -78,9 +80,9 @@ export function FilterBar({ note }: { note?: string }) {
             {mode === 'month' && (
               <div className="pp-grid m">
                 {MON.map((lbl, i) => {
-                  const key = `${year}-${pad(i + 1)}`, n = monthCounts.get(key) ?? 0;
+                  const key = `${year}-${pad(i + 1)}`, n = monthCounts.get(key) ?? 0, any = dataMonths.has(key);
                   const on = k.kind === 'month' && filter.from.startsWith(key);
-                  return <button key={key} className={`pp-cell${on ? ' on' : ''}`} disabled={!n} onClick={() => pick(monthRange(key))}>{lbl}<small>{n ? n.toLocaleString('id-ID') : '–'}</small></button>;
+                  return <button key={key} className={`pp-cell${on ? ' on' : ''}${!n && any ? ' thin' : ''}`} disabled={!any} onClick={() => pick(monthRange(key))}>{lbl}<small>{small(n, any)}</small></button>;
                 })}
               </div>
             )}
@@ -89,7 +91,7 @@ export function FilterBar({ note }: { note?: string }) {
                 {[1, 2, 3, 4].map((q) => {
                   const r = quarterRange(year, q), n = count(r.from, r.to);
                   const on = k.kind === 'quarter' && k.y === year && k.q === q;
-                  return <button key={q} className={`pp-cell${on ? ' on' : ''}`} disabled={!n} onClick={() => pick(r)}>Q{q}<small>{MON[q * 3 - 3]}–{MON[q * 3 - 1]} · {n ? n.toLocaleString('id-ID') : '–'}</small></button>;
+                  return <button key={q} className={`pp-cell${on ? ' on' : ''}`} disabled={!hasData(r.from, r.to)} onClick={() => pick(r)}>Q{q}<small>{MON[q * 3 - 3]}–{MON[q * 3 - 1]} · {small(n, hasData(r.from, r.to))}</small></button>;
                 })}
               </div>
             )}
@@ -97,7 +99,7 @@ export function FilterBar({ note }: { note?: string }) {
               <div className="pp-grid q">
                 {years.map((y) => {
                   const r = yearRange(y), n = count(r.from, r.to);
-                  return <button key={y} className={`pp-cell${k.kind === 'year' && k.y === y ? ' on' : ''}`} onClick={() => pick(r)}>{y}<small>{n.toLocaleString('id-ID')} pesanan</small></button>;
+                  return <button key={y} className={`pp-cell${k.kind === 'year' && k.y === y ? ' on' : ''}`} onClick={() => pick(r)}>{y}<small>{n ? `${n.toLocaleString('id-ID')} pesanan` : 'tanpa pesanan'}</small></button>;
                 })}
               </div>
             )}
@@ -120,7 +122,7 @@ export function FilterBar({ note }: { note?: string }) {
                   <option value="yoy">Periode sama tahun lalu</option>
                 </select>
               </label>
-              <div className="muted">Pembanding: {periodLabel(prev)} · {note ?? `omzet ${BASIS_DESC[filter.basis]}`} · angka kecil = jumlah pesanan.</div>
+              <div className="muted">Pembanding: {periodLabel(prev)} · {note ?? `omzet ${BASIS_DESC[filter.basis]}`} · angka kecil = jumlah pesanan; “tanpa pesanan” = baru ada data retur/penghasilan.</div>
             </div>
           </div>
         </div>

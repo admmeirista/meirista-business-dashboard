@@ -12,6 +12,7 @@ import { useData } from '../data';
 import { CheckTag, PageHead, Tabs, checkVal, num, toast } from '../components/ui';
 import { DriveBackupCard, backupToDrive } from '../components/DriveBackup';
 import { ImportHistoryPanel } from './ImportHistory';
+import { CoveragePanel } from './Coverage';
 
 const guessKind = (n: string): ReportKind | null =>
   /^Order\.completed\./i.test(n) ? 'completed' : /^Order\.all\./i.test(n) ? 'all' : /^Order\.return_refund\./i.test(n) ? 'returns' : /^Income\.sudah dilepas\./i.test(n) ? 'income' : null;
@@ -19,12 +20,12 @@ const guessKind = (n: string): ReportKind | null =>
 interface Result { batches: ImportBatch[]; parsed: ParsedUpload; skipped: string[]; backup: { ok: boolean; text: string } | null }
 
 export default function Import() {
-  const [tab, setTab] = useState<'import' | 'history'>('import');
+  const [tab, setTab] = useState<'coverage' | 'import' | 'history'>('coverage');
   return (
     <>
       <PageHead eyebrow="Konfigurasi" title="Import & Backup Data" />
-      <Tabs value={tab} onChange={setTab} items={[{ key: 'import', label: 'Import laporan' }, { key: 'history', label: 'Riwayat import' }]} />
-      {tab === 'import' ? <ImportPanel /> : <ImportHistoryPanel />}
+      <Tabs value={tab} onChange={setTab} items={[{ key: 'coverage', label: 'Kelengkapan per bulan' }, { key: 'import', label: 'Import manual' }, { key: 'history', label: 'Riwayat import' }]} />
+      {tab === 'coverage' ? <CoveragePanel /> : tab === 'import' ? <ImportPanel /> : <ImportHistoryPanel />}
     </>
   );
 }
