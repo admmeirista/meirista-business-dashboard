@@ -136,5 +136,12 @@ describe.skipIf(!hasFixtures)('Ringkasan eksekutif & paket AI', () => {
     }
     const costs = aiPayload(ix2, { ...f, from: '2026-07-01', to: '2026-07-31' }, prev, 'Juli 2026', 'Juni 2026', 'costs') as { biaya: { dana_dilepas_di_periode: { dana_diterima: number } } };
     expect(costs.biaya.dana_dilepas_di_periode.dana_diterima).toBe(702523353);
+
+    // Basis omzet default = tanggal pengiriman (Waktu Pengiriman Diatur).
+    const jun = salesSummary(ix2, { basis: 'shipped', from: '2026-06-01', to: '2026-06-30' });
+    const jul = salesSummary(ix2, { basis: 'shipped', from: '2026-07-01', to: '2026-07-31' });
+    expect(jun.orders).toBe(9175);
+    expect(jul.orders).toBe(147);
+    expect(jun.gmv + jul.gmv).toBe(ix2.ds.items.reduce((t, i) => t + i.subtotal, 0));
   });
 });

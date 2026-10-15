@@ -32,7 +32,8 @@ const METRICS: { area: string; items: { name: string; formula: string; source: s
 ];
 
 const BASES = [
-  ['Pesanan selesai (default omzet)', 'Waktu Pesanan Selesai — dipakai untuk omzet, pesanan, pelanggan, retur, laba'],
+  ['Pengiriman (default omzet)', 'Waktu Pengiriman Diatur — dipakai untuk omzet, pesanan, pelanggan, tingkat retur, laba'],
+  ['Pesanan selesai', 'Waktu Pesanan Selesai (opsional) — status selesai & pencairan dana dipantau sebagai piutang'],
   ['Pesanan dibuat', 'Waktu Pesanan Dibuat (opsional, ubah di Pengaturan → Umum)'],
   ['Pembayaran', 'Waktu Pembayaran Dilakukan — record penghasilan dicocokkan via No. Pesanan'],
   ['Dana dilepas', 'Tanggal Dana Dilepaskan — dipakai untuk Dana diterima, biaya Shopee, dan penyesuaian (Tanggal Penyesuaian Dibuat)'],

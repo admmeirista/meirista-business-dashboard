@@ -4,6 +4,7 @@ import { useData } from '../data';
 import { CohortTable } from '../components/charts';
 import { DataTable, Delta, Kpi, Panel, maskName, num, pct, rp, rpShort, type Col } from '../components/ui';
 import { retention, rfm, SEGMENTS, type RfmRow } from '../lib/metrics/analytics';
+import { orderDate } from '../lib/metrics/dataset';
 
 const SEG: Record<string, { desc: string; action: string }> = {
   Champions: { desc: 'Baru beli, sering, belanja besar', action: 'Pertahankan — beri prioritas & bonus' },
@@ -21,7 +22,7 @@ export function CustomersPanel() {
   const rows = useMemo(() => rfm(ix, filter), [ix, filter]);
   const ret = useMemo(() => retention(ix, filter), [ix, filter]);
   const retPrev = useMemo(() => retention(ix, prev), [ix, prev]);
-  const allMonths = useMemo(() => new Set(ix.ds.orders.map((o) => o.completedAt?.slice(0, 7)).filter(Boolean)).size, [ix]);
+  const allMonths = useMemo(() => new Set(ix.ds.orders.map((o) => orderDate(ix, o, filter.basis)?.slice(0, 7)).filter(Boolean)).size, [ix, filter.basis]);
   const segs = SEGMENTS.map((s) => { const r = rows.filter((x) => x.segment === s); return { s, n: r.length, m: r.reduce((t, x) => t + x.monetary, 0) }; });
   const view = seg ? rows.filter((r) => r.segment === seg) : rows;
   const newB = ret.monthly.reduce((t, m) => t + m.newBuyers, 0);

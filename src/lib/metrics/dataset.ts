@@ -28,10 +28,11 @@ export const emptyDataset = (): Dataset => ({
 });
 
 /** Basis tanggal pelaporan. */
-export type DateBasis = 'created' | 'paid' | 'completed' | 'released';
+export type DateBasis = 'created' | 'paid' | 'shipped' | 'completed' | 'released';
 export const BASIS_LABEL: Record<DateBasis, string> = {
   created: 'Pesanan dibuat',
   paid: 'Pembayaran',
+  shipped: 'Pengiriman',
   completed: 'Pesanan selesai',
   released: 'Dana dilepas',
 };
@@ -105,6 +106,7 @@ export function orderDate(ix: Index, o: Order, basis: DateBasis): string | null 
   switch (basis) {
     case 'created': return day(o.createdAt);
     case 'paid': return day(o.paidAt);
+    case 'shipped': return day(o.shippedAt);
     case 'completed': return day(o.completedAt);
     case 'released': return ix.releaseByOrder.get(o.orderNo) ?? null;
   }

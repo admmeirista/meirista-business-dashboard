@@ -2,7 +2,7 @@
 // Paket AI hanya berisi angka agregat & nama produk — tidak ada username, alamat, atau No. Pesanan.
 import { marketplaceFees } from '../fees';
 import { FEE_GROUPS } from '../fees';
-import { day, incomeOrdersIn, ordersIn, type Filter, type Index } from './dataset';
+import { BASIS_LABEL, incomeOrdersIn, orderDate, ordersIn, type Filter, type Index } from './dataset';
 import { profitability, retention, returnsAnalysis, salesBy, salesSummary, settlementSummary, safeDiv } from './analytics';
 import { insights } from './insights';
 
@@ -67,7 +67,7 @@ const r4 = (v: number | null) => (v === null ? null : Math.round(v * 10000) / 10
 /** Catatan kualitas data agar AI tidak salah menyimpulkan. */
 function dataNotes(ix: Index, f: Filter): string[] {
   const n: string[] = [
-    `Omzet dihitung per tanggal ${f.basis === 'completed' ? 'pesanan selesai' : f.basis === 'created' ? 'pesanan dibuat' : 'pembayaran'}.`,
+    `Omzet dihitung per tanggal ${BASIS_LABEL[f.basis].toLowerCase()} (pesanan dari laporan Pesanan Selesai). Pesanan yang sudah dikirim tetapi belum selesai/dibatalkan tidak termasuk dalam export ini.`,
     'Export Shopee "Pesanan Selesai" difilter per tanggal pesanan dibuat; bulan di tepi rentang data yang diimport bisa belum lengkap.',
   ];
   const months = [...new Set(ix.ds.orders.map((o) => o.createdAt?.slice(0, 7)).filter(Boolean))].sort();
@@ -113,7 +113,7 @@ export function aiPayload(ix: Index, f: Filter, prev: Filter, label: string, pre
   const monthly = () => {
     const m = new Map<string, { omzet: number; pesanan: number }>();
     for (const o of ordersIn(ix, f)) {
-      const d = day(f.basis === 'created' ? o.createdAt : f.basis === 'paid' ? o.paidAt : o.completedAt)!.slice(0, 7);
+      const d = orderDate(ix, o, f.basis)!.slice(0, 7);
       const e = m.get(d) ?? { omzet: 0, pesanan: 0 };
       e.pesanan++; e.omzet += (ix.itemsByOrder.get(o.orderNo) ?? []).reduce((t, i) => t + i.subtotal, 0);
       m.set(d, e);

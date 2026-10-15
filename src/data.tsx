@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db } from './lib/db';
 import { loadDataset } from './lib/load';
-import { buildIndex, day, emptyDataset, type DateBasis, type Filter, type Index } from './lib/metrics/dataset';
+import { buildIndex, emptyDataset, orderDate, type DateBasis, type Filter, type Index } from './lib/metrics/dataset';
 
 export interface Period { from: string; to: string }
 export type CompareMode = 'prev' | 'yoy';
@@ -10,7 +10,7 @@ interface Ctx {
   ix: Index;
   ready: boolean;
   reload: () => Promise<void>;
-  /** Periode + basis tanggal omzet (default: Pesanan selesai). */
+  /** Periode + basis tanggal omzet (default: tanggal pengiriman). */
   filter: Filter;
   /** Periode pembanding (periode sebelumnya atau tahun lalu). */
   prev: Filter;
@@ -93,7 +93,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [period, setPeriodState] = useState<Period | null>(() => store.get<Period | null>('bi.period', null));
   const [compare, setCompareState] = useState<CompareMode>(() => store.get<CompareMode>('bi.compare', 'prev'));
-  const [basis, setBasisState] = useState<DateBasis>(() => store.get<DateBasis>('bi.basis', 'completed'));
+  // Kunci baru: default omzet = tanggal pengiriman (Waktu Pengiriman Diatur).
+  const [basis, setBasisState] = useState<DateBasis>(() => store.get<DateBasis>('bi.basis.v2', 'shipped'));
   const [mask, setMaskState] = useState<boolean>(() => store.get('bi.mask', true));
 
   const reload = useCallback(async () => {
@@ -104,7 +105,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const monthCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const o of ix.ds.orders) {
-      const d = day(basis === 'created' ? o.createdAt : basis === 'paid' ? o.paidAt : o.completedAt);
+      const d = orderDate(ix, o, basis === 'released' ? 'shipped' : basis);
       if (d) m.set(d.slice(0, 7), (m.get(d.slice(0, 7)) ?? 0) + 1);
     }
     return m;
@@ -119,13 +120,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return monthRange(recent[0] ?? new Date().toISOString().slice(0, 7));
   }, [period, months, monthCounts]);
 
-  const filter: Filter = useMemo(() => ({ basis: basis === 'released' ? 'completed' : basis, ...effective }), [basis, effective]);
+  const filter: Filter = useMemo(() => ({ basis: basis === 'released' ? 'shipped' : basis, ...effective }), [basis, effective]);
   const prev: Filter = useMemo(() => ({ ...filter, ...(compare === 'yoy' ? yearAgo(effective) : previousPeriod(effective)) }), [filter, effective, compare]);
   const value: Ctx = {
     ix, ready, reload, months, monthCounts, mask, basis: filter.basis, filter, prev, compare,
     setPeriod: (p) => { setPeriodState(p); store.set('bi.period', p); },
     setCompare: (c) => { setCompareState(c); store.set('bi.compare', c); },
-    setBasis: (b) => { setBasisState(b); store.set('bi.basis', b); },
+    setBasis: (b) => { setBasisState(b); store.set('bi.basis.v2', b); },
     setMask: (v) => { setMaskState(v); store.set('bi.mask', v); },
   };
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;

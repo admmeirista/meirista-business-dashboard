@@ -113,7 +113,7 @@ function OrderTrail({ orderNo, onClose }: { orderNo: string; onClose: () => void
           <>
             <div className="sect">Pesanan</div>
             <div className="kv">
-              <div>Dibuat / selesai</div><div>{dt(o.createdAt)} / {dt(o.completedAt)}</div>
+              <div>Dibuat / dikirim / selesai</div><div>{dt(o.createdAt)} / {dt(o.shippedAt)} / {dt(o.completedAt)}</div>
               <div>Pembayaran</div><div>{o.paymentMethod} · {rp(o.totalPayment)}</div>
               <div>Tujuan</div><div>{o.city}, {o.province}</div>
             </div>

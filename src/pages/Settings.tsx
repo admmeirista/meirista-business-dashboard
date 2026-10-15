@@ -45,9 +45,9 @@ function General() {
     <div className="stack">
       <Panel title="Tanggal untuk menghitung omzet" sub="Dipakai di Ringkasan, Penjualan, Pelanggan, Pengembalian, dan Laba">
         <div className="chips">
-          {(['completed', 'created', 'paid'] as DateBasis[]).map((b) => <button key={b} className={basis === b ? 'on' : ''} onClick={() => setBasis(b)}>{BASIS_LABEL[b]}{b === 'completed' ? ' (disarankan)' : ''}</button>)}
+          {(['shipped', 'completed', 'created', 'paid'] as DateBasis[]).map((b) => <button key={b} className={basis === b ? 'on' : ''} onClick={() => setBasis(b)}>{BASIS_LABEL[b]}{b === 'shipped' ? ' (default)' : ''}</button>)}
         </div>
-        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Dana diterima & biaya Shopee selalu memakai tanggal dana dilepas.</p>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Default: <b>tanggal pengiriman</b> (Waktu Pengiriman Diatur). Pesanan dihitung sebagai penjualan saat dikirim; status selesai & pencairan dana dipantau sebagai piutang di Rekonsiliasi. Dana diterima & biaya Shopee selalu memakai tanggal dana dilepas.</p>
       </Panel>
       <Panel title="Privasi">
         <label className="row" style={{ fontWeight: 600 }}><input type="checkbox" checked={mask} onChange={(e) => setMask(e.target.checked)} /><EyeOff className="ic" />Samarkan username pembeli di layar & file CSV</label>

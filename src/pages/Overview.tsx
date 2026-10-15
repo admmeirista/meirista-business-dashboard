@@ -8,6 +8,7 @@ import { Inline } from '../components/Ai';
 import { executiveSummary } from '../lib/metrics/summary';
 import { Delta, Kpi, PageHead, Panel, num, pct, rp, rpShort } from '../components/ui';
 import { profitability, salesBy, salesSummary, settlementSummary } from '../lib/metrics/analytics';
+import { BASIS_LABEL } from '../lib/metrics/dataset';
 import { insights } from '../lib/metrics/insights';
 import { FEE_GROUPS } from '../lib/fees';
 
@@ -56,7 +57,7 @@ export default function Overview() {
       </section>
       <div className="kpis k4">
         <Kpi dark icon={<ShoppingBag className="ic" />} label="Omzet" value={rpShort(s.gmv)} sub={<Delta dark now={s.gmv} before={sp.gmv} />}
-          formula="Σ (harga setelah diskon × jumlah) semua item pesanan selesai pada periode, menurut tanggal pesanan selesai." />
+          formula={`Σ (harga setelah diskon × jumlah) semua item pesanan, menurut tanggal ${BASIS_LABEL[filter.basis].toLowerCase()}.`} />
         <Kpi icon={<Package className="ic" />} label="Pesanan" value={num(s.orders)} sub={<><div className="hint">{rp(s.aov)} per pesanan · {num(s.units)} unit</div><Delta now={s.orders} before={sp.orders} /></>}
           formula="Jumlah No. Pesanan unik. Rata-rata per pesanan = omzet ÷ pesanan." />
         <Kpi icon={<Wallet className="ic" />} label="Dana diterima" value={st.records ? rpShort(st.totalIncome) : <span className="na">–</span>}

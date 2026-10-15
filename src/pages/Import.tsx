@@ -186,7 +186,7 @@ function dataHealth(ix: Index): { level: 'ok' | 'warn' | 'info'; text: string; l
   const ds = ix.ds;
   const span = (a: (string | null)[]) => { const d = a.filter(Boolean).sort() as string[]; return d.length ? `${d[0].slice(0, 10)} s/d ${d[d.length - 1].slice(0, 10)}` : '–'; };
   const out: ReturnType<typeof dataHealth> = [];
-  out.push(ds.orders.length ? { level: 'ok', text: `Pesanan Selesai: ${num(ds.orders.length)} pesanan (selesai ${span(ds.orders.map((o) => o.completedAt))}).` } : { level: 'warn', text: 'Pesanan Selesai belum diimport.' });
+  out.push(ds.orders.length ? { level: 'ok', text: `Pesanan Selesai: ${num(ds.orders.length)} pesanan (dikirim ${span(ds.orders.map((o) => o.shippedAt))}).` } : { level: 'warn', text: 'Pesanan Selesai belum diimport.' });
   out.push(ds.reports.length ? { level: 'ok', text: `Penghasilan: ${ds.reports.map((r) => `${r.from} s/d ${r.to}`).join(', ')}.` } : { level: 'warn', text: 'Laporan Penghasilan belum diimport.' });
   out.push(ds.returns.length ? { level: 'ok', text: `Pengembalian: ${num(ds.returns.length)} pengajuan.` } : { level: 'info', text: 'Laporan Pengembalian belum diimport.' });
   const parts = new Map<string, Set<number | null>>();
