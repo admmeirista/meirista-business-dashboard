@@ -10,7 +10,7 @@ interface Ctx {
   ix: Index;
   ready: boolean;
   reload: () => Promise<void>;
-  /** Periode + basis tanggal omzet (default: tanggal pengiriman). */
+  /** Periode + basis omzet (default: definisi Seller Centre). */
   filter: Filter;
   /** Periode pembanding (periode sebelumnya atau tahun lalu). */
   prev: Filter;
@@ -93,8 +93,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [period, setPeriodState] = useState<Period | null>(() => store.get<Period | null>('bi.period', null));
   const [compare, setCompareState] = useState<CompareMode>(() => store.get<CompareMode>('bi.compare', 'prev'));
-  // Kunci baru: default omzet = tanggal pengiriman (Waktu Pengiriman Diatur).
-  const [basis, setBasisState] = useState<DateBasis>(() => store.get<DateBasis>('bi.basis.v2', 'shipped'));
+  // Kunci baru: default omzet = definisi Seller Centre.
+  const [basis, setBasisState] = useState<DateBasis>(() => store.get<DateBasis>('bi.basis.v3', 'sc'));
   const [mask, setMaskState] = useState<boolean>(() => store.get('bi.mask', true));
 
   const reload = useCallback(async () => {
@@ -104,7 +104,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const monthCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const o of ix.ds.orders) {
+    for (const o of basis === 'sc' ? [...ix.ds.orders, ...ix.cancelled] : ix.ds.orders) {
       const d = orderDate(ix, o, basis === 'released' ? 'shipped' : basis);
       if (d) m.set(d.slice(0, 7), (m.get(d.slice(0, 7)) ?? 0) + 1);
     }
@@ -126,7 +126,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ix, ready, reload, months, monthCounts, mask, basis: filter.basis, filter, prev, compare,
     setPeriod: (p) => { setPeriodState(p); store.set('bi.period', p); },
     setCompare: (c) => { setCompareState(c); store.set('bi.compare', c); },
-    setBasis: (b) => { setBasisState(b); store.set('bi.basis.v2', b); },
+    setBasis: (b) => { setBasisState(b); store.set('bi.basis.v3', b); },
     setMask: (v) => { setMaskState(v); store.set('bi.mask', v); },
   };
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;

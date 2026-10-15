@@ -1,7 +1,7 @@
 import type { IncomeRecord, Order, OrderItem, ReturnRequest } from '../types';
 import { FEE_GROUPS, groupTotal, marketplaceFees } from '../fees';
 import { RETURN_VOID_STATUSES } from '../parse/returns';
-import { day, incomeOrdersIn, inRange, itemCogs, orderDate, ordersIn, productOf, type DateBasis, type Filter, type Index } from './dataset';
+import { day, incomeOrdersIn, inRange, itemCogs, netOrdersIn, orderDate, ordersIn, productOf, type DateBasis, type Filter, type Index } from './dataset';
 
 const sum = <T>(a: T[], f: (x: T) => number) => a.reduce((s, x) => s + f(x), 0);
 export const safeDiv = (a: number, b: number) => (b ? a / b : null);
@@ -24,10 +24,11 @@ export function salesSummary(ix: Index, f: Filter): SalesSummary {
     const d = orderDate(ix, o, f.basis)!;
     const e = daily.get(d) ?? { gmv: 0, orders: 0 };
     e.orders++;
-    e.gmv += sum(ix.itemsByOrder.get(o.orderNo) ?? [], (i) => i.subtotal);
+    e.gmv += sum(ix.itemsByOrder.get(o.orderNo) ?? [], (i) => i.subtotal) - (f.basis === 'sc' ? o.voucherSeller + o.bundleDiscountSeller : 0);
     daily.set(d, e);
   }
-  const gmv = sum(items, (i) => i.subtotal);
+  // Definisi Seller Centre: harga produk − voucher/diskon penjual (nilai level pesanan, dihitung sekali per pesanan).
+  const gmv = sum(items, (i) => i.subtotal) - (f.basis === 'sc' ? sum(orders, (o) => o.voucherSeller + o.bundleDiscountSeller) : 0);
   return {
     orders: orders.length, lines: items.length, units: sum(items, (i) => i.qty), gmv,
     originalValue: sum(items, (i) => i.priceOriginal * i.qty), sellerDiscount: sum(items, (i) => i.sellerDiscount),
@@ -177,7 +178,7 @@ export function returnsAnalysis(ix: Index, f: Filter, b: ReturnBasis) {
     e.qty += l.qty; e.requests.add(r.returnNo); prod.set(k, e);
   }
   // Tingkat pengembalian = kohort pesanan pada periode (basis tanggal omzet); pengajuannya boleh terjadi kapan pun.
-  const cohort = ordersIn(ix, f);
+  const cohort = netOrdersIn(ix, f);
   const cohortReturned = cohort.filter((o) => (ix.returnsByOrder.get(o.orderNo) ?? []).some((r) => returnState(r) !== 'VOID'));
   return {
     requests: reqs.length, valid: valid.length, refundedCount: refunded.length, refundTotal: sum(refunded, (r) => r.refundTotal),
@@ -219,7 +220,7 @@ function segmentOf(r: number, f: number, fr: number): string {
  */
 export function rfm(ix: Index, f: Filter): RfmRow[] {
   const by = new Map<string, { n: number; m: number; first: string; last: string }>();
-  for (const o of ordersIn(ix, f)) {
+  for (const o of netOrdersIn(ix, f)) {
     const d = orderDate(ix, o, f.basis)!;
     const e = by.get(o.buyer) ?? { n: 0, m: 0, first: d, last: d };
     e.n++; e.m += sum(ix.itemsByOrder.get(o.orderNo) ?? [], (i) => i.subtotal);
@@ -284,7 +285,7 @@ export interface ProfitRow { key: string; label: string; sub: string; gmv: numbe
  * HPP = HPP unit (berlaku per tanggal pesanan dibuat) × isi paket × jumlah. Item tanpa HPP → laba "tidak tersedia", tidak dihitung 0.
  */
 export function profitability(ix: Index, f: Filter, by: 'product' | 'brand' | 'category' | 'listing') {
-  const orders = ordersIn(ix, f);
+  const orders = netOrdersIn(ix, f);
   const m = new Map<string, ProfitRow & { cogsKnownNet: number; withCogsUnits: number }>();
   let totals = { gmv: 0, net: 0, cogs: 0, profitBase: 0, settledOrders: 0, unsettledOrders: 0, itemsNoCogs: 0, itemsSettled: 0 };
   for (const o of orders) {
@@ -339,7 +340,7 @@ export function dataWarnings(ix: Index, f: Filter): { level: 'warn' | 'info'; te
     }
     if (gaps.length) w.push({ level: 'warn', text: `${gaps.length} hari pada rentang ini belum tercakup laporan Penghasilan (${gaps[0]} … ${gaps[gaps.length - 1]}).` });
   }
-  const orders = ordersIn(ix, f);
+  const orders = netOrdersIn(ix, f);
   const unsettled = orders.filter((o) => !ix.incomeByOrder.has(o.orderNo)).length;
   if (orders.length && unsettled && ds.reports.length) w.push({ level: 'info', text: `${unsettled.toLocaleString('id-ID')} dari ${orders.length.toLocaleString('id-ID')} pesanan pada rentang ini belum ditemukan di laporan Penghasilan yang diimport (bisa dilepas di periode lain).` });
   const items = orders.flatMap((o) => ix.itemsByOrder.get(o.orderNo) ?? []);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData, monthRange, quarterRange, yearRange, periodKind, stepPeriod, type Period, type CompareMode } from '../data';
-import { BASIS_LABEL } from '../lib/metrics/dataset';
+import { BASIS_DESC } from '../lib/metrics/dataset';
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -54,7 +54,7 @@ export function FilterBar({ note }: { note?: string }) {
     <div className="pbar" ref={ref}>
       <div className="pp">
         <button className="btn sm ghost" onClick={() => setPeriod(stepPeriod(filter, -1))} aria-label="Periode sebelumnya"><ChevronLeft className="ic" /></button>
-        <button className="pp-btn" onClick={() => setOpen(!open)} title={typeof note === 'string' ? note : `Omzet per tanggal ${BASIS_LABEL[filter.basis].toLowerCase()} · pembanding ${periodLabel(prev)}`}><CalendarDays className="ic" /><span>{periodLabel(filter)}</span><ChevronDown className="ic" /></button>
+        <button className="pp-btn" onClick={() => setOpen(!open)} title={typeof note === 'string' ? note : `Omzet ${BASIS_DESC[filter.basis]} · pembanding ${periodLabel(prev)}`}><CalendarDays className="ic" /><span>{periodLabel(filter)}</span><ChevronDown className="ic" /></button>
         <button className="btn sm ghost" onClick={() => setPeriod(stepPeriod(filter, 1))} aria-label="Periode berikutnya"><ChevronRight className="ic" /></button>
       </div>
 
@@ -120,7 +120,7 @@ export function FilterBar({ note }: { note?: string }) {
                   <option value="yoy">Periode sama tahun lalu</option>
                 </select>
               </label>
-              <div className="muted">Pembanding: {periodLabel(prev)} · {note ?? `omzet per tanggal ${BASIS_LABEL[filter.basis].toLowerCase()}`} · angka kecil = jumlah pesanan.</div>
+              <div className="muted">Pembanding: {periodLabel(prev)} · {note ?? `omzet ${BASIS_DESC[filter.basis]}`} · angka kecil = jumlah pesanan.</div>
             </div>
           </div>
         </div>

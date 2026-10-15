@@ -32,7 +32,8 @@ const METRICS: { area: string; items: { name: string; formula: string; source: s
 ];
 
 const BASES = [
-  ['Pengiriman (default omzet)', 'Waktu Pengiriman Diatur — dipakai untuk omzet, pesanan, pelanggan, tingkat retur, laba'],
+  ['Seller Centre (default omzet)', 'Waktu Pembayaran Dilakukan (COD: saat checkout), termasuk pesanan batal; nilai = harga produk − voucher/diskon penjual'],
+  ['Pengiriman', 'Waktu Pengiriman Diatur — omzet bersih tanpa pesanan batal'],
   ['Pesanan selesai', 'Waktu Pesanan Selesai (opsional) — status selesai & pencairan dana dipantau sebagai piutang'],
   ['Pesanan dibuat', 'Waktu Pesanan Dibuat (opsional, ubah di Pengaturan → Umum)'],
   ['Pembayaran', 'Waktu Pembayaran Dilakukan — record penghasilan dicocokkan via No. Pesanan'],

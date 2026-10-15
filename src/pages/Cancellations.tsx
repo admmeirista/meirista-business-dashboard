@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Ban, Store, Truck, ShoppingBag, CheckCircle2 } from 'lucide-react';
 import { useData } from '../data';
 import { DataTable, Kpi, Panel, num, pct, rp, rpShort } from '../components/ui';
-import { BASIS_LABEL } from '../lib/metrics/dataset';
+import { BASIS_DESC } from '../lib/metrics/dataset';
 import { cancellationAnalysis } from '../lib/metrics/cancellations';
 
 /** Tab Penjualan → Pembatalan: angka versi Seller Centre, jembatan ke omzet dashboard, dan penyebab pembatalan. */
@@ -30,10 +30,10 @@ export function CancellationsPanel() {
           formula="Pesanan yang sudah dibayar/dikonfirmasi lalu berstatus Batal. Sama dengan kartu 'Pesanan Dibatalkan' di Seller Centre." />
         <Kpi icon={<Truck className="ic" />} label="Gagal kirim" value={num(a.failed.orders)} sub={<div className="hint">batal setelah dikirim · {rpShort(a.failed.value)}</div>}
           formula="Pesanan dibatalkan padahal sudah punya Waktu Pengiriman — biasanya COD ditolak atau pengiriman gagal. Ongkir & barang kembali menjadi beban penjual." />
-        <Kpi icon={<ShoppingBag className="ic" />} label="Omzet dashboard" value={rpShort(a.omzet.value)} sub={<div className="hint">{num(a.omzet.orders)} pesanan tidak batal · per tanggal {BASIS_LABEL[filter.basis].toLowerCase()}</div>} />
+        <Kpi icon={<ShoppingBag className="ic" />} label="Omzet bersih" value={rpShort(a.omzet.value)} sub={<div className="hint">{num(a.omzet.orders)} pesanan · {BASIS_DESC[a.netBasis]}</div>} formula="Pesanan yang tidak dibatalkan. Inilah penjualan yang benar-benar menghasilkan uang." />
       </div>
 
-      <Panel title="Dari Penjualan Seller Centre ke omzet dashboard" sub="Setiap selisih dijelaskan per kelompok pesanan"
+      <Panel title="Dari Penjualan Seller Centre ke omzet bersih" sub="Setiap selisih dijelaskan per kelompok pesanan"
         actions={a.bridgeMatches ? <span className="tag ok"><CheckCircle2 className="ic" />Cocok</span> : <span className="tag warn">Selisih {rp(a.bridgeTotal.value - a.omzet.value)}</span>}>
         <table className="t">
           <thead><tr><th>Komponen</th><th className="num">Pesanan</th><th className="num">Nilai</th><th>Keterangan</th></tr></thead>
@@ -47,7 +47,7 @@ export function CancellationsPanel() {
               </tr>
             ))}
           </tbody>
-          <tfoot><tr><td>= Omzet dashboard</td><td className="num">{num(a.omzet.orders)}</td><td className="num">{rp(a.omzet.value)}</td><td /></tr></tfoot>
+          <tfoot><tr><td>= Omzet bersih</td><td className="num">{num(a.omzet.orders)}</td><td className="num">{rp(a.omzet.value)}</td><td /></tr></tfoot>
         </table>
         {a.unpaidCancelled.orders > 0 && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Tidak termasuk {num(a.unpaidCancelled.orders)} pesanan yang dibatalkan sebelum dibayar ({rpShort(a.unpaidCancelled.value)}) — Seller Centre juga tidak menghitungnya.</div>}
       </Panel>

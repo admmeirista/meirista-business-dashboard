@@ -2,7 +2,7 @@
 // Paket AI hanya berisi angka agregat & nama produk — tidak ada username, alamat, atau No. Pesanan.
 import { marketplaceFees } from '../fees';
 import { FEE_GROUPS } from '../fees';
-import { BASIS_LABEL, incomeOrdersIn, orderDate, ordersIn, type Filter, type Index } from './dataset';
+import { BASIS_DESC, incomeOrdersIn, orderDate, ordersIn, type Filter, type Index } from './dataset';
 import { profitability, retention, returnsAnalysis, salesBy, salesSummary, settlementSummary, safeDiv } from './analytics';
 import { insights } from './insights';
 import { cancellationAnalysis } from './cancellations';
@@ -49,7 +49,10 @@ export function executiveSummary(ix: Index, f: Filter, prev: Filter, label: stri
     ? { key: 'fees', label: 'Biaya', tone: 'neutral', text: `Potongan Shopee **${pct(fs.feeRate)}** · dana bersih ${pct(safeDiv(fs.totalIncome, fs.productPrice), 0)} dari harga` }
     : { key: 'fees', label: 'Biaya', tone: 'warn', text: 'Belum ada data pencairan untuk pesanan periode ini' });
 
-  if (ix.ds.returns.length) {
+  // Retur hanya diringkas bila ada laporan Pengembalian yang mencakup periode ini (tanpa itu 0% menyesatkan).
+  const returnsCovered = ix.ds.files.some((x) => x.kind === 'returns' && x.periodFrom && x.periodTo && x.periodFrom <= f.to && x.periodTo >= f.from);
+  if (ix.ds.returns.length && !returnsCovered) out.push({ key: 'returns', label: 'Retur', tone: 'warn', text: 'Laporan Pengembalian periode ini belum diimport' });
+  else if (ix.ds.returns.length) {
     const ra = returnsAnalysis(ix, f, 'requested');
     out.push({ key: 'returns', label: 'Retur', tone: (ra.returnRate ?? 0) > 0.03 ? 'warn' : 'neutral',
       text: `**${pct(ra.returnRate, 2)}** pesanan${ra.byReason[0] ? ` · utama: ${ra.byReason[0].key.toLowerCase().replace(/\.$/, '')}` : ''}` });
@@ -72,7 +75,8 @@ const r4 = (v: number | null) => (v === null ? null : Math.round(v * 10000) / 10
 /** Catatan kualitas data agar AI tidak salah menyimpulkan. */
 function dataNotes(ix: Index, f: Filter): string[] {
   const n: string[] = [
-    `Omzet dihitung per tanggal ${BASIS_LABEL[f.basis].toLowerCase()} (pesanan dari laporan Pesanan Selesai). Pesanan yang sudah dikirim tetapi belum selesai/dibatalkan tidak termasuk dalam export ini.`,
+    `Omzet dihitung ${BASIS_DESC[f.basis]}.`,
+    'Omzet bersih (tanpa pesanan batal) dan rincian pembatalan ada di bagian pembatalan bila export Semua Pesanan sudah diimport.',
     'Export Shopee "Pesanan Selesai" difilter per tanggal pesanan dibuat; bulan di tepi rentang data yang diimport bisa belum lengkap.',
   ];
   const months = [...new Set(ix.ds.orders.map((o) => o.createdAt?.slice(0, 7)).filter(Boolean))].sort();

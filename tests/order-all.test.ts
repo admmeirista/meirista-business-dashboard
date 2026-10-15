@@ -10,7 +10,7 @@ import { parseUploads, type UploadFile } from '../src/lib/pipeline';
 import { commitUpload } from '../src/lib/importer';
 import { loadDataset } from '../src/lib/load';
 import { buildIndex } from '../src/lib/metrics/dataset';
-import { salesSummary } from '../src/lib/metrics/analytics';
+import { profitability, returnsAnalysis, salesSummary } from '../src/lib/metrics/analytics';
 import { cancellationAnalysis } from '../src/lib/metrics/cancellations';
 import { reconcile } from '../src/lib/metrics/reconcile';
 import { detectFile } from '../src/lib/parse/detect';
@@ -58,6 +58,17 @@ describe.skipIf(!hasAll)('Order.all Agustus 2026 (file asli)', () => {
     expect(a.omzet).toEqual({ orders: 5751, value: 629572136 });
     expect(salesSummary(ix, aug).orders).toBe(5751);
     expect(a.actors.map((x) => [x.actor, x.orders])).toEqual([['Pembeli', 455], ['Sistem Shopee', 298], ['Penjual', 11]]);
+    // Basis omzet default "Seller Centre": angka Ringkasan = kartu Penjualan Seller Centre.
+    const sc = salesSummary(ix, { ...aug, basis: 'sc' });
+    expect([sc.orders, sc.gmv]).toEqual([6614, 742897194]);
+    // Juni (tanpa export Semua Pesanan) = pesanan dibayar Juni yang tidak batal.
+    expect(salesSummary(ix, { basis: 'sc', from: '2026-06-01', to: '2026-06-30' })).toMatchObject({ orders: 9322, gmv: 880252044 });
+    // Laba & kohort retur tidak memasukkan pesanan batal.
+    expect(profitability(ix, { ...aug, basis: 'sc' }, 'product').totals.unsettledOrders + profitability(ix, { ...aug, basis: 'sc' }, 'product').totals.settledOrders).toBe(5850);
+    expect(returnsAnalysis(ix, { ...aug, basis: 'sc' }, 'requested').cohortOrders).toBe(5850);
+    // Jembatan pada basis Seller Centre membandingkan ke omzet bersih per tanggal kirim.
+    const b = cancellationAnalysis(ix, { ...aug, basis: 'sc' });
+    expect([b.netBasis, b.omzet.orders, b.bridgeMatches]).toEqual(['shipped', 5751, true]);
     // Pesanan batal tidak dianggap "belum dilepas".
     expect(reconcile(ix).exceptions.filter((e) => e.type === 'UNSETTLED' && ix.cancelled.some((c) => c.orderNo === e.orderNo))).toHaveLength(0);
   });

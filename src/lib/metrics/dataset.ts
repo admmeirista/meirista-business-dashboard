@@ -28,13 +28,24 @@ export const emptyDataset = (): Dataset => ({
 });
 
 /** Basis tanggal pelaporan. */
-export type DateBasis = 'created' | 'paid' | 'shipped' | 'completed' | 'released';
+export type DateBasis = 'sc' | 'created' | 'paid' | 'shipped' | 'completed' | 'released';
 export const BASIS_LABEL: Record<DateBasis, string> = {
+  sc: 'Seller Centre',
   created: 'Pesanan dibuat',
   paid: 'Pembayaran',
   shipped: 'Pengiriman',
   completed: 'Pesanan selesai',
   released: 'Dana dilepas',
+};
+
+/** Penjelasan singkat basis omzet untuk teks UI. */
+export const BASIS_DESC: Record<DateBasis, string> = {
+  sc: 'versi Seller Centre (tanggal bayar/konfirmasi, termasuk pesanan batal)',
+  created: 'per tanggal pesanan dibuat',
+  paid: 'per tanggal pembayaran (tanpa pesanan batal)',
+  shipped: 'per tanggal pengiriman (tanpa pesanan batal)',
+  completed: 'per tanggal pesanan selesai',
+  released: 'per tanggal dana dilepas',
 };
 
 export interface Filter { basis: DateBasis; from: string; to: string } // YYYY-MM-DD, inklusif
@@ -99,7 +110,8 @@ export function buildIndex(raw: Dataset): Index {
     cancelledItems: group(raw.items.filter((i) => cancelledNos.has(i.orderNo)), (i) => i.orderNo),
     allExportRanges: raw.files.filter((f) => f.kind === 'all' && f.periodFrom && f.periodTo).map((f) => ({ from: f.periodFrom!, to: f.periodTo! })),
     orderByNo: new Map(ds.orders.map((o) => [o.orderNo, o])),
-    itemsByOrder: group(ds.items, (i) => i.orderNo),
+    // Termasuk item pesanan batal (dipakai basis Seller Centre); analisis bersih hanya mencari pesanan tidak batal.
+    itemsByOrder: group(raw.items, (i) => i.orderNo),
     incomeOrders,
     incomeSkus: ds.income.filter((r) => r.recordType === 'Sku'),
     incomeByOrder: group(incomeOrders, (r) => r.orderNo),
@@ -120,6 +132,7 @@ export function orderDate(ix: Index, o: Order, basis: DateBasis): string | null 
   switch (basis) {
     case 'created': return day(o.createdAt);
     case 'paid': return day(o.paidAt);
+    case 'sc': return day(o.paidAt);
     case 'shipped': return day(o.shippedAt);
     case 'completed': return day(o.completedAt);
     case 'released': return ix.releaseByOrder.get(o.orderNo) ?? null;
@@ -134,7 +147,11 @@ export function incomeDate(ix: Index, r: IncomeRecord, basis: DateBasis): string
   return o ? orderDate(ix, o, basis) : null;
 }
 
-export const ordersIn = (ix: Index, f: Filter) => ix.ds.orders.filter((o) => inRange(orderDate(ix, o, f.basis), f));
+/** Pesanan pada periode. Basis Seller Centre ikut menghitung pesanan batal yang sudah dibayar/dikonfirmasi. */
+export const ordersIn = (ix: Index, f: Filter) =>
+  (f.basis === 'sc' ? [...ix.ds.orders, ...ix.cancelled] : ix.ds.orders).filter((o) => inRange(orderDate(ix, o, f.basis), f));
+/** Pesanan pada periode tanpa pesanan batal (untuk laba, retur, kelengkapan data). */
+export const netOrdersIn = (ix: Index, f: Filter) => ordersIn(ix, f).filter((o) => !isCancelled(o));
 export const incomeOrdersIn = (ix: Index, f: Filter) => ix.incomeOrders.filter((r) => inRange(incomeDate(ix, r, f.basis), f));
 
 /** HPP per unit produk yang berlaku pada tanggal tertentu (entri terakhir dengan effectiveFrom ≤ tanggal). */

@@ -8,7 +8,8 @@ import { Inline } from '../components/Ai';
 import { executiveSummary } from '../lib/metrics/summary';
 import { Delta, Kpi, PageHead, Panel, num, pct, rp, rpShort } from '../components/ui';
 import { profitability, salesBy, salesSummary, settlementSummary } from '../lib/metrics/analytics';
-import { BASIS_LABEL } from '../lib/metrics/dataset';
+import { BASIS_DESC } from '../lib/metrics/dataset';
+import { hasCancellationData } from '../lib/metrics/cancellations';
 import { insights } from '../lib/metrics/insights';
 import { FEE_GROUPS } from '../lib/fees';
 
@@ -56,8 +57,11 @@ export default function Overview() {
         </div>
       </section>
       <div className="kpis k4">
-        <Kpi dark icon={<ShoppingBag className="ic" />} label="Omzet" value={rpShort(s.gmv)} sub={<Delta dark now={s.gmv} before={sp.gmv} />}
-          formula={`Σ (harga setelah diskon × jumlah) semua item pesanan, menurut tanggal ${BASIS_LABEL[filter.basis].toLowerCase()}.`} />
+        <Kpi dark icon={<ShoppingBag className="ic" />} label="Omzet" value={rpShort(s.gmv)}
+          sub={<>{filter.basis === 'sc' && !hasCancellationData(ix, filter) && ix.ds.orders.length > 0 && <div className="hint">belum termasuk pesanan batal — import Semua Pesanan</div>}<Delta dark now={s.gmv} before={sp.gmv} /></>}
+          formula={filter.basis === 'sc'
+            ? 'Definisi Seller Centre 2026: harga produk − voucher/diskon penjual dari pesanan yang dibayar (non-COD) atau dikonfirmasi (COD) di periode ini, termasuk yang kemudian dibatalkan. Angka bulan lalu tidak berubah walau ada pembatalan belakangan.'
+            : `Σ (harga setelah diskon × jumlah) semua item pesanan, ${BASIS_DESC[filter.basis]}.`} />
         <Kpi icon={<Package className="ic" />} label="Pesanan" value={num(s.orders)} sub={<><div className="hint">{rp(s.aov)} per pesanan · {num(s.units)} unit</div><Delta now={s.orders} before={sp.orders} /></>}
           formula="Jumlah No. Pesanan unik. Rata-rata per pesanan = omzet ÷ pesanan." />
         <Kpi icon={<Wallet className="ic" />} label="Dana diterima" value={st.records ? rpShort(st.totalIncome) : <span className="na">–</span>}

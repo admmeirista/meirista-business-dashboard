@@ -34,8 +34,9 @@ export function cancellationAnalysis(ix: Index, f: Filter) {
   const sellerCentre = { orders: paidValid.length + paidCancelled.length, value: sum(paidValid, false) + sum(paidCancelled, true) };
   const cancelled = { orders: paidCancelled.length, value: sum(paidCancelled, true) };
 
-  // Jembatan ke omzet dashboard (basis tanggal omzet, pesanan tidak batal).
-  const omzetOrders = ix.ds.orders.filter((o) => inRange(orderDate(ix, o, f.basis), f));
+  // Jembatan ke omzet bersih (pesanan tidak batal). Bila basis omzet = Seller Centre, pembandingnya per tanggal kirim.
+  const netBasis = f.basis === 'sc' ? 'shipped' : f.basis;
+  const omzetOrders = ix.ds.orders.filter((o) => inRange(orderDate(ix, o, netBasis), f));
   const omzet = { orders: omzetOrders.length, value: omzetOrders.reduce((t, o) => t + orderValue(ix, o, false), 0) };
   const paidSet = new Set(paidValid.map((o) => o.orderNo));
   const omzetSet = new Set(omzetOrders.map((o) => o.orderNo));
@@ -73,7 +74,7 @@ export function cancellationAnalysis(ix: Index, f: Filter) {
   }
 
   return {
-    covered: hasCancellationData(ix, f),
+    covered: hasCancellationData(ix, f), netBasis,
     sellerCentre, cancelled,
     cancelRate: sellerCentre.orders ? cancelled.orders / sellerCentre.orders : null,
     failed: { orders: failed.length, value: sum(failed, true) },
