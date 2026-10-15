@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db } from './lib/db';
 import { loadDataset } from './lib/load';
+import { fetchBundle, forgetKey, loadedBundleAt, loadedBundleId, tryAutoUnlock, unlockWithPassword, type BundleState } from './lib/bundleClient';
 import { buildIndex, emptyDataset, orderDate, type DateBasis, type Filter, type Index } from './lib/metrics/dataset';
 
 export interface Period { from: string; to: string }
@@ -24,6 +25,14 @@ interface Ctx {
   /** Jumlah pesanan per bulan (YYYY-MM) menurut basis omzet. */
   monthCounts: Map<string, number>;
   months: string[]; // bulan yang punya pesanan, terbaru dulu
+  /** Paket data terenkripsi baru yang menunggu password (null = tidak ada / sudah dimuat). */
+  pendingBundle: BundleState | null;
+  /** Waktu pembuatan paket data yang sedang dipakai perangkat ini. */
+  bundleAt: string | null;
+  unlock: (password: string, remember: boolean) => Promise<void>;
+  skipBundle: () => void;
+  forgetDevice: () => Promise<void>;
+  checkBundle: () => Promise<void>;
 }
 
 const DataCtx = createContext<Ctx | null>(null);
@@ -97,10 +106,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [basis, setBasisState] = useState<DateBasis>(() => store.get<DateBasis>('bi.basis.v3', 'sc'));
   const [mask, setMaskState] = useState<boolean>(() => store.get('bi.mask', true));
 
+  const [pendingBundle, setPendingBundle] = useState<BundleState | null>(null);
+  const [bundleAt, setBundleAt] = useState<string | null>(null);
+
   const reload = useCallback(async () => {
     try { setIx(buildIndex(await loadDataset(db()))); } finally { setReady(true); }
   }, []);
-  useEffect(() => { void reload(); }, [reload]);
+  // Paket data dari folder data-inbox (dipublikasikan terenkripsi). Dimuat otomatis bila perangkat mengingat kuncinya.
+  const checkBundle = useCallback(async () => {
+    const b = await fetchBundle();
+    setBundleAt((await loadedBundleAt(db())) ?? null);
+    if (!b || b.header.id === (await loadedBundleId(db()))) return;
+    if (await tryAutoUnlock(db(), b)) { setBundleAt(b.header.createdAt); await reload(); return; }
+    setPendingBundle(b);
+  }, [reload]);
+  useEffect(() => { void reload().then(checkBundle); }, [reload, checkBundle]);
+  const unlock = useCallback(async (password: string, remember: boolean) => {
+    if (!pendingBundle) return;
+    await unlockWithPassword(db(), pendingBundle, password, remember);
+    setBundleAt(pendingBundle.header.createdAt);
+    setPendingBundle(null);
+    await reload();
+  }, [pendingBundle, reload]);
 
   const monthCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -123,7 +150,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const filter: Filter = useMemo(() => ({ basis: basis === 'released' ? 'shipped' : basis, ...effective }), [basis, effective]);
   const prev: Filter = useMemo(() => ({ ...filter, ...(compare === 'yoy' ? yearAgo(effective) : previousPeriod(effective)) }), [filter, effective, compare]);
   const value: Ctx = {
-    ix, ready, reload, months, monthCounts, mask, basis: filter.basis, filter, prev, compare,
+    ix, ready, reload, months, monthCounts, pendingBundle, bundleAt, unlock, checkBundle,
+    skipBundle: () => setPendingBundle(null),
+    forgetDevice: async () => { await forgetKey(db()); }, mask, basis: filter.basis, filter, prev, compare,
     setPeriod: (p) => { setPeriodState(p); store.set('bi.period', p); },
     setCompare: (c) => { setCompareState(c); store.set('bi.compare', c); },
     setBasis: (b) => { setBasisState(b); store.set('bi.basis.v3', b); },

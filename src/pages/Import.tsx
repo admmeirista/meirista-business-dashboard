@@ -30,7 +30,7 @@ export default function Import() {
 }
 
 function ImportPanel() {
-  const { reload, ix } = useData();
+  const { reload, ix, bundleAt } = useData();
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,6 +83,7 @@ function ImportPanel() {
   return (
     <div className="imp">
       <div className="stack">
+        {bundleAt && <div className="info-box" style={{ marginTop: 0 }}>Data di perangkat ini berasal dari paket terenkripsi (folder data-inbox) per {new Date(bundleAt).toLocaleString('id-ID')}. Import manual di sini hanya sementara — akan diganti saat paket data berikutnya dimuat.</div>}
         <div
           className={`drop${over ? ' over' : ''}${busy ? ' disabled' : ''}`}
           onClick={() => !busy && input.current?.click()}

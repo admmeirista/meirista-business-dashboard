@@ -405,3 +405,9 @@ select.in.full,input.in.full{width:100%}
 .imp-results .panel{box-shadow:none}
 .drop.disabled{opacity:.6;cursor:progress}
 .file-card{padding:12px 16px}
+/* jendela buka data terenkripsi */
+.unlock-bg{z-index:9500}
+.modal.unlock{max-width:420px;padding:28px 26px 22px;text-align:left}
+.unlock h3{font-size:20px;margin:12px 0 6px}
+.unlock-ic{width:48px;height:48px;border-radius:14px;background:var(--acc-soft);color:var(--acc);display:flex;align-items:center;justify-content:center}
+.unlock-ic .ic{width:22px;height:22px}

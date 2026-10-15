@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Undo2, Receipt, Scale, Upload, Boxes, Settings as SettingsIcon, Menu, Lock } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Undo2, Receipt, Scale, Upload, Boxes, Settings as SettingsIcon, Menu } from 'lucide-react';
 import { useData } from './data';
 import { AiButton } from './components/Ai';
+import { DataStatus, UnlockDialog } from './components/Unlock';
 import { periodLabel } from './components/FilterBar';
 import { AI_SUGGEST, AI_TASK, aiPayload, type AiTopic } from './lib/metrics/summary';
 import Overview from './pages/Overview';
@@ -64,12 +65,10 @@ export default function App() {
             ))}
           </div>
         ))}
-        <div className="me">
-          <div className="avatar"><Lock className="ic" style={{ width: 16, height: 16 }} /></div>
-          <div><div className="n">Data lokal</div><div className="r">Tersimpan di browser ini saja</div></div>
-        </div>
+        <DataStatus />
       </aside>
       {open && <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setOpen(false)} />}
+      <UnlockDialog />
       <main className="main">
         {!ready ? <div className="loading"><span className="spinner" />Memuat data…</div>
           : empty && !DATA_FREE.includes(loc.pathname) ? <Navigate to="/import" replace />

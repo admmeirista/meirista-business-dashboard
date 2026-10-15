@@ -8,3 +8,11 @@ dist
 *.csv
 fixtures/
 backup-*.json
+# Folder data: hanya struktur & README yang di-commit, file laporan tidak pernah
+data-inbox/**
+!data-inbox/
+!data-inbox/README.md
+!data-inbox/*/
+!data-inbox/*/.gitkeep
+# Password enkripsi data (lokal saja)
+.data-password

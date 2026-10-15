@@ -104,13 +104,35 @@ Update berikutnya cukup `git push`.
 > Untuk memindahkan data ke komputer lain gunakan *Pengaturan & Backup → Unduh backup* lalu *Pulihkan* di komputer tujuan.
 > File backup berisi transaksi & username pembeli — simpan aman, jangan di-commit.
 
-## 5. Alur kerja bulanan
+## 5. Alur kerja bulanan (folder + data terenkripsi)
 
-1. Export dari Seller Centre: Pesanan Selesai (semua part), Pengembalian, Penghasilan Saya › Sudah Dilepas.
-2. *Import Laporan* → tarik semua file sekaligus. File yang sudah pernah diimport otomatis dilewati.
-3. Periksa hasil validasi (semua harus **Cocok**) dan *Rekonsiliasi → Laporan pengecualian*.
-4. Petakan listing baru & isi HPP di *Master Produk & HPP* (bisa massal via Template Excel).
-5. Unduh backup.
+Data resmi dashboard berasal dari folder `data-inbox/` di komputer ini, dipublikasikan **terenkripsi** ke GitHub Pages.
+
+| Folder | File |
+|---|---|
+| `data-inbox/order/` | `Order.all.*.xlsx` — Pesanan Saya › **Semua** › Export (semua part) |
+| `data-inbox/retur/` | `Order.return_refund.*.xls(x)` |
+| `data-inbox/income/` | `Income.sudah dilepas.*.xlsx` |
+
+1. Sekali di awal, tentukan password data (disimpan di `.data-password`, hanya di komputer ini, tidak di-push):
+   ```bash
+   npm run data:password
+   ```
+2. Drop file export ke folder yang sesuai (simpan semua bulan, jangan dihapus).
+3. Publikasikan — membaca semua file, memvalidasi total terhadap laporan Shopee, membuang data pribadi,
+   mengenkripsi (AES-256-GCM, kunci PBKDF2-SHA256 600.000 iterasi), lalu commit & push **hanya** `public/data/bundle.bin`:
+   ```bash
+   npm run publish-data
+   ```
+   Publikasi dibatalkan bila ada total yang tidak cocok atau file salah folder (`-- --force` untuk tetap lanjut, `-- --no-push` untuk uji).
+4. Buka dashboard → masukkan password sekali per perangkat (centang *Ingat di perangkat ini* agar paket berikutnya terbuka otomatis).
+5. Petakan listing baru & isi HPP di *Produk & HPP* (master produk & HPP tersimpan per perangkat, tidak ikut paket).
+
+Keamanan: file Excel di `data-inbox/` dan `.data-password` diabaikan git. Tanpa password, `bundle.bin` hanya berisi data acak.
+Password tidak bisa dipulihkan — bila lupa, buat password baru (`npm run data:password`) lalu `npm run publish-data` ulang;
+setiap perangkat cukup memasukkan password baru.
+
+Import lewat halaman *Import & Backup* tetap tersedia untuk percobaan, tetapi akan diganti saat paket data berikutnya dimuat.
 
 ## 6. Keputusan desain penting
 
