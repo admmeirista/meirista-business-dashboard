@@ -32,17 +32,31 @@ describe('paket data terenkripsi', () => {
     expect(b.id).not.toBe(a.id);
   });
 
-  it('nominal penghasilan nol tidak disimpan di paket, dipulihkan saat dimuat', async () => {
+  it('penghasilan: baris Sku tidak ikut paket; nominal utuh setelah enkripsi → dekripsi → dimuat', async () => {
     const src = new BizDb('inc-' + Date.now());
     const amounts = Object.fromEntries(INCOME_AMOUNT_FIELDS.map((f) => [f, 0]));
-    await src.income.put({ id: 'O|1', recordType: 'Order', orderNo: '1', amounts: { ...amounts, 'Total Penghasilan': 900, 'Biaya Administrasi': -100 } } as never);
+    await src.income.bulkPut([
+      { id: 'O|1', recordType: 'Order', orderNo: '1', compensation: null, amounts: { ...amounts, 'Total Penghasilan': 900, 'Biaya Administrasi': -100 } },
+      { id: 'S|1|1', recordType: 'Sku', orderNo: '1', amounts: { ...amounts, 'Total Penghasilan': 900 } },
+    ] as never);
     const tables = await dumpTables(src);
-    expect((tables.income[0] as { amounts: object }).amounts).toEqual({ 'Total Penghasilan': 900, 'Biaya Administrasi': -100 });
+    expect(tables.income.map((r) => (r as { id: string }).id)).toEqual(['O|1']);
+    const bytes = await encodeBundle(payload(tables), 'password-benar-123');
+    const decoded = await decodeBundle(bytes, await deriveKey('password-benar-123', readHeader(bytes).header.kdf.salt));
     const dst = new BizDb('inc2-' + Date.now());
-    await applyBundle(dst, payload(tables));
+    await applyBundle(dst, decoded);
     const back = (await dst.income.toArray())[0];
     expect(Object.keys(back.amounts)).toHaveLength(INCOME_AMOUNT_FIELDS.length);
     expect(back.amounts).toMatchObject({ 'Total Penghasilan': 900, 'Biaya Administrasi': -100, 'Biaya Layanan': 0 });
+    expect(back.compensation).toBeNull();
+  });
+
+  it('format kolom: nama kolom tidak diulang per baris', async () => {
+    const rows = Array.from({ length: 1000 }, (_, i) => ({ orderNo: `O${i}`, paymentMethod: 'COD (Bayar di Tempat)', shippedAt: null }));
+    const v2 = await encodeBundle(payload({ orders: rows }), 'password-benar-123');
+    const back = await decodeBundle(v2, await deriveKey('password-benar-123', readHeader(v2).header.kdf.salt));
+    expect(back.tables.orders).toEqual(rows);
+    expect(readHeader(v2).header.v).toBe(2);
   });
 
   it('memuat paket mengganti data laporan, master produk & HPP di perangkat tetap', async () => {

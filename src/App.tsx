@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { LayoutDashboard, ShoppingBag, Undo2, Receipt, Scale, Upload, Boxes, Settings as SettingsIcon, Menu } from 'lucide-react';
 import { useData } from './data';
 import { AiButton } from './components/Ai';
-import { DataStatus, UnlockDialog } from './components/Unlock';
+import { DataStatus, SyncOverlay, UnlockDialog } from './components/Unlock';
 import { periodLabel } from './components/FilterBar';
 import { AI_SUGGEST, AI_TASK, aiPayload, type AiTopic } from './lib/metrics/summary';
 import Overview from './pages/Overview';
@@ -69,6 +69,7 @@ export default function App() {
       </aside>
       {open && <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setOpen(false)} />}
       <UnlockDialog />
+      <SyncOverlay />
       <main className="main">
         {!ready ? <div className="loading"><span className="spinner" />Memuat data…</div>
           : empty && !DATA_FREE.includes(loc.pathname) ? <Navigate to="/import" replace />

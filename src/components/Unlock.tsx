@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { useData } from '../data';
@@ -42,11 +42,34 @@ export function UnlockDialog() {
         </label>
         {err && <div className="err-box">{err}</div>}
         <button className={`btn pri full${busy ? ' busy' : ''}`} style={{ marginTop: 16, width: '100%', height: 44 }} disabled={!pw || busy}>Buka data</button>
-        {busy && <div className="muted" style={{ fontSize: 12.5, marginTop: 8, textAlign: 'center' }}>Membuka dan menyimpan data ke perangkat ini… bisa sampai 1 menit, jangan tutup halaman.</div>}
+        {busy && <div style={{ fontSize: 12.5, marginTop: 8, textAlign: 'center', fontWeight: 700, color: 'var(--acc-ink)' }}>Membuka dan menyimpan data… ±1 menit. Jangan refresh atau tutup halaman.</div>}
         <button type="button" className="link-btn" style={{ marginTop: 12, display: 'block', marginInline: 'auto' }} onClick={skipBundle}>
           {hasLocal ? 'Nanti saja — pakai data yang sudah ada di perangkat ini' : 'Lewati'}
         </button>
       </form>
+    </div>,
+    document.body,
+  );
+}
+
+/** Layar tunggu saat paket data baru dimuat otomatis; mencegah refresh yang akan membatalkan proses. */
+export function SyncOverlay() {
+  const { syncing } = useData();
+  useEffect(() => {
+    if (!syncing) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [syncing]);
+  if (!syncing) return null;
+  return createPortal(
+    <div className="modal-bg unlock-bg">
+      <div className="modal unlock" style={{ textAlign: 'center' }}>
+        <span className="spinner" style={{ width: 34, height: 34, borderWidth: 3 }} />
+        <h3>Memuat data terbaru…</h3>
+        <p className="muted" style={{ margin: 0 }}>Data baru sedang dibuka dan disimpan ke perangkat ini. Biasanya ±1 menit.</p>
+        <p style={{ margin: '10px 0 0', fontWeight: 700, color: 'var(--acc-ink)' }}>Jangan refresh atau tutup halaman — proses akan mulai ulang dari awal.</p>
+      </div>
     </div>,
     document.body,
   );
