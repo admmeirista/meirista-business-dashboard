@@ -4,7 +4,8 @@ import { FEE_GROUPS, componentSum, groupTotal } from '../fees';
 import { check, redact, type RawRecord, type Rejected, type SourceFile, type TotalCheck } from './common';
 import { idr0, isBlankRow, parseDate, parseIdr, rowToObject, sheetRows, str, uniqueHeaders, type Row } from './util';
 
-export const INCOME_SHEETS = ['Summary', 'Shipping Fee Discrepancy', 'Adjustment', 'Seller Fee'] as const;
+/** Sheet wajib. Sheet lain (Seller Fee, Shipping Fee Discrepancy, Service Fee Details, …) berbeda antar format dan opsional. */
+export const INCOME_SHEETS = ['Summary', 'Adjustment'] as const;
 
 export interface IncomeParse {
   reports: Omit<IncomeReport, 'batchId'>[];
@@ -114,9 +115,9 @@ export function parseIncome(files: SourceFile[]): IncomeParse {
 
   for (const f of files) {
     const missing = INCOME_SHEETS.filter((s) => !f.wb.SheetNames.includes(s));
-    const incomeSheets = f.wb.SheetNames.filter((n) => /^Penghasilan - \d+$/.test(n));
+    const incomeSheets = f.wb.SheetNames.filter((n) => /^Penghasilan( - \d+)?$/.test(n));
     if (missing.length) out.warnings.push(`${f.name}: sheet tidak ditemukan: ${missing.join(', ')}.`);
-    if (!incomeSheets.length) throw new Error(`${f.name}: sheet "Penghasilan - n" tidak ditemukan.`);
+    if (!incomeSheets.length) throw new Error(`${f.name}: sheet "Penghasilan" tidak ditemukan.`);
 
     const { meta, lines } = parseSummary(sheetRows(f.wb, 'Summary'));
     if (!meta.from || !meta.to) out.warnings.push(`${f.name}: periode laporan (Dari/ke) tidak terbaca di Summary.`);
@@ -131,8 +132,12 @@ export function parseIncome(files: SourceFile[]): IncomeParse {
     out.adjustments.push(...adjustments);
     out.reports.push({ id: reportId, seller: meta.seller, from: meta.from, to: meta.to, summary: lines, adjustmentSummary: adjSummary, sourceFile: f.name });
 
-    const sf = simpleTable(sheetRows(f.wb, 'Seller Fee'), f.name, 'Seller Fee', out);
-    for (const { o } of sf.body) {
+    // "Seller Fee" (Juli 2026+) atau "Seller Fee - 1/2"; hanya dipakai bila kolomnya sesuai format acuan.
+    const sfBody = f.wb.SheetNames.filter((n) => /^Seller Fee( - \d+)?$/.test(n)).flatMap((n) => {
+      const t = simpleTable(sheetRows(f.wb, n), f.name, n, out);
+      return t.headers.includes('Biaya Platform (Opsional)') ? t.body : [];
+    });
+    for (const { o } of sfBody) {
       out.sellerFees.push({
         id: `${reportId}|${str(o['No. Pesanan'] as string)}`, reportId, orderNo: str(o['No. Pesanan'] as string),
         platform: idr0(o['Biaya Platform (Opsional)'] as number), freeShippingXtra: idr0(o['Biaya Gratis Ongkir XTRA (Opsional)'] as number),
@@ -201,7 +206,8 @@ export function parseIncome(files: SourceFile[]): IncomeParse {
         (type === 'Order' ? fileOrders : fileSkus).push(rec);
       }
     }
-    if (missingAmountCols.length) out.warnings.push(`${f.name}: kolom nominal tidak ada (dianggap 0): ${missingAmountCols.join(', ')}.`);
+    // Kolom nominal berbeda antar format Shopee (mis. XTRA hanya di format baru) — kolom yang tidak ada = 0.
+    if (!incomeSheets.length || missingAmountCols.includes('Total Penghasilan')) out.warnings.push(`${f.name}: kolom Total Penghasilan tidak ditemukan.`);
     out.records.push(...fileOrders, ...fileSkus);
 
     // ── Validasi: Summary Shopee vs detail baris "Order" (baris "Sku" adalah alokasi, tidak dijumlahkan ke total) ──
@@ -226,6 +232,12 @@ export function parseIncome(files: SourceFile[]): IncomeParse {
     const badRows = fileOrders.filter((r) => Math.abs(componentSum(r.amounts) - r.amounts['Total Penghasilan']) >= 1);
     out.checks.push(check(scope, 'Baris Order dengan Total Penghasilan ≠ jumlah komponennya', 0, badRows.length, 0.5));
     if (badRows.length) out.warnings.push(`${f.name}: ${badRows.length} baris Order total ≠ jumlah komponen, contoh ${badRows.slice(0, 3).map((r) => r.orderNo).join(', ')}.`);
+    // Format lama mengelompokkan biaya sebagai "Biaya Admin & Layanan".
+    const adminLine = findLine('Biaya Admin & Layanan', 0);
+    if (adminLine) {
+      const fields = ['Biaya Administrasi', 'Biaya Layanan', 'Premi', 'Biaya Transaksi', 'Biaya Kampanye', 'Biaya Komisi AMS', 'Biaya Proses Pesanan', 'Biaya Isi Saldo Otomatis (dari Penghasilan)'] as const;
+      out.checks.push(check(scope, 'Biaya Admin & Layanan (grup, format lama)', adminLine.value, sum((r) => fields.reduce((t, k) => t + r.amounts[k], 0))));
+    }
     const unknownSummary = lines.filter((l) => l.level === 1 && l.value && !FEE_GROUPS.some((g) => g.fields.some((x) => x.summaryLabel === l.label)));
     for (const l of unknownSummary) out.checks.push(check(scope, `${l.label} (tidak ada kolom detail)`, l.value, null));
   }

@@ -180,6 +180,10 @@ export const INCOME_AMOUNT_FIELDS = [
   'Biaya Gratis Ongkir XTRA - Ukuran Biasa (Kategori D)',
   'Biaya Gratis Ongkir XTRA - Ukuran Biasa (Kategori E)',
   'Biaya Layanan Promo XTRA',
+  // Format lama (s/d Juni 2026): satu kolom Biaya Layanan, plus biaya AMP.
+  'Biaya Layanan',
+  'Payment Method Surcharge (AMP)',
+  'AMP Deduction',
   'AMS Service Fee',
   'Biaya Kampanye',
   'Biaya Komisi AMS',

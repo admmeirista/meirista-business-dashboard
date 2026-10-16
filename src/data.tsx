@@ -32,6 +32,8 @@ interface Ctx {
   pendingBundle: BundleState | null;
   /** Waktu pembuatan paket data yang sedang dipakai perangkat ini. */
   bundleAt: string | null;
+  /** Sedang memuat paket data baru secara otomatis (kunci diingat perangkat). */
+  syncing: boolean;
   unlock: (password: string, remember: boolean) => Promise<void>;
   skipBundle: () => void;
   forgetDevice: () => Promise<void>;
@@ -111,6 +113,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const [pendingBundle, setPendingBundle] = useState<BundleState | null>(null);
   const [bundleAt, setBundleAt] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const reload = useCallback(async () => {
     try { setIx(buildIndex(await loadDataset(db()))); } finally { setReady(true); }
@@ -120,7 +123,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const b = await fetchBundle();
     setBundleAt((await loadedBundleAt(db())) ?? null);
     if (!b || b.header.id === (await loadedBundleId(db()))) return;
-    if (await tryAutoUnlock(db(), b)) { setBundleAt(b.header.createdAt); await reload(); return; }
+    setSyncing(true);
+    const ok = await tryAutoUnlock(db(), b).finally(() => setSyncing(false));
+    if (ok) { setBundleAt(b.header.createdAt); await reload(); return; }
     setPendingBundle(b);
   }, [reload]);
   useEffect(() => { void reload().then(checkBundle); }, [reload, checkBundle]);
@@ -156,7 +161,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const filter: Filter = useMemo(() => ({ basis: basis === 'released' ? 'shipped' : basis, ...effective }), [basis, effective]);
   const prev: Filter = useMemo(() => ({ ...filter, ...(compare === 'yoy' ? yearAgo(effective) : previousPeriod(effective)) }), [filter, effective, compare]);
   const value: Ctx = {
-    ix, ready, reload, months, monthCounts, dataMonths, pendingBundle, bundleAt, unlock, checkBundle,
+    ix, ready, reload, months, monthCounts, dataMonths, pendingBundle, bundleAt, syncing, unlock, checkBundle,
     skipBundle: () => setPendingBundle(null),
     forgetDevice: async () => { await forgetKey(db()); }, mask, basis: filter.basis, filter, prev, compare,
     setPeriod: (p) => { setPeriodState(p); store.set('bi.period', p); },

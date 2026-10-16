@@ -23,7 +23,8 @@ const ymd = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 /** Jenis laporan dari isi workbook (dipakai untuk memverifikasi nama file). */
 export function kindFromContent(wb: WorkBook): ReportKind | null {
   const names = wb.SheetNames;
-  if (names.includes('Summary') && names.some((n) => /^Penghasilan - \d+$/.test(n))) return 'income';
+  // Format baru: "Penghasilan - 1/2"; format lama (awal 2025): satu sheet "Penghasilan".
+  if (names.includes('Summary') && names.some((n) => /^Penghasilan( - \d+)?$/.test(n))) return 'income';
   for (const n of names.slice(0, 3)) {
     const head = (sheetRows(wb, n)[0] ?? []).map(str);
     if (head.includes('No. Pengembalian') && head.includes('No. Pesanan')) return 'returns';

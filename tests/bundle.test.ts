@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { BizDb } from '../src/lib/db';
 import { applyBundle, decodeBundle, deriveKey, dumpTables, encodeBundle, readHeader, WrongPasswordError, type BundlePayload } from '../src/lib/bundle';
+import { INCOME_AMOUNT_FIELDS } from '../src/lib/types';
 
 const payload = (tables: Record<string, unknown[]>): BundlePayload => ({ createdAt: '2026-10-15T10:00:00.000Z', files: [], counts: {}, tables });
 
@@ -29,6 +30,19 @@ describe('paket data terenkripsi', () => {
     expect(b.kdf.salt).toBe(a.kdf.salt);
     expect(b.iv).not.toBe(a.iv);
     expect(b.id).not.toBe(a.id);
+  });
+
+  it('nominal penghasilan nol tidak disimpan di paket, dipulihkan saat dimuat', async () => {
+    const src = new BizDb('inc-' + Date.now());
+    const amounts = Object.fromEntries(INCOME_AMOUNT_FIELDS.map((f) => [f, 0]));
+    await src.income.put({ id: 'O|1', recordType: 'Order', orderNo: '1', amounts: { ...amounts, 'Total Penghasilan': 900, 'Biaya Administrasi': -100 } } as never);
+    const tables = await dumpTables(src);
+    expect((tables.income[0] as { amounts: object }).amounts).toEqual({ 'Total Penghasilan': 900, 'Biaya Administrasi': -100 });
+    const dst = new BizDb('inc2-' + Date.now());
+    await applyBundle(dst, payload(tables));
+    const back = (await dst.income.toArray())[0];
+    expect(Object.keys(back.amounts)).toHaveLength(INCOME_AMOUNT_FIELDS.length);
+    expect(back.amounts).toMatchObject({ 'Total Penghasilan': 900, 'Biaya Administrasi': -100, 'Biaya Layanan': 0 });
   });
 
   it('memuat paket mengganti data laporan, master produk & HPP di perangkat tetap', async () => {

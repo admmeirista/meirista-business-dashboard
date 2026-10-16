@@ -3,6 +3,7 @@
 // Kunci diturunkan dari password dengan PBKDF2-SHA256. Tanpa password, isi file tidak dapat dibaca.
 import type { BizDb } from './db';
 import { AUDIT_TABLES, DATA_TABLES } from './db';
+import { INCOME_AMOUNT_FIELDS } from './types';
 
 export const BUNDLE_PATH = 'data/bundle.bin';
 const MAGIC = 'MBI1';
@@ -78,10 +79,22 @@ export async function decodeBundle(bytes: Uint8Array, key: CryptoKey): Promise<B
   return JSON.parse(new TextDecoder().decode(await streamBytes(plain, new DecompressionStream('gzip'))));
 }
 
+type Amounts = Record<string, number>;
+/** Nominal penghasilan yang nol tidak disimpan di paket (sebagian besar kolom biaya bernilai 0) — dipulihkan saat dimuat. */
+const compactIncome = (rows: unknown[]) => rows.map((r) => {
+  const x = r as { amounts: Amounts };
+  return { ...x, amounts: Object.fromEntries(Object.entries(x.amounts).filter(([, v]) => v !== 0)) };
+});
+const expandIncome = (rows: unknown[]) => rows.map((r) => {
+  const x = r as { amounts: Amounts };
+  return { ...x, amounts: { ...Object.fromEntries(INCOME_AMOUNT_FIELDS.map((f) => [f, 0])), ...x.amounts } };
+});
+
 /** Ambil isi tabel dari database (dipakai script publish). */
 export async function dumpTables(db: BizDb): Promise<Record<string, unknown[]>> {
   const out: Record<string, unknown[]> = {};
   for (const t of BUNDLE_TABLES) out[t] = await (db as unknown as Record<TableName, AnyTable>)[t].toArray();
+  out.income = compactIncome(out.income);
   return out;
 }
 
@@ -91,7 +104,8 @@ export async function applyBundle(db: BizDb, payload: BundlePayload) {
     for (const t of [...BUNDLE_TABLES, 'raw' as const]) {
       const tbl = (db as unknown as Record<string, AnyTable>)[t];
       await tbl.clear();
-      if (Array.isArray(payload.tables[t])) await tbl.bulkPut(payload.tables[t]);
+      const rows = payload.tables[t];
+      if (Array.isArray(rows)) await tbl.bulkPut(t === 'income' ? expandIncome(rows) : rows);
     }
   });
 }

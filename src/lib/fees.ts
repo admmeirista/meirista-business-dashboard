@@ -54,6 +54,7 @@ export const FEE_GROUPS: FeeGroup[] = [
   {
     key: 'service', label: 'Biaya Layanan (Opsional)', section: 'expense', fields: [
       { field: 'Biaya Layanan Promo XTRA', summaryLabel: 'Biaya Layanan Promo XTRA' },
+      { field: 'Biaya Layanan', summaryLabel: 'Biaya Layanan' }, // format lama
     ],
   },
   {
@@ -69,6 +70,8 @@ export const FEE_GROUPS: FeeGroup[] = [
       { field: 'Premi', summaryLabel: 'Premi' },
       { field: 'Biaya Transaksi', summaryLabel: 'Biaya Transaksi' },
       { field: 'FBS Fee', summaryLabel: 'FBS Fee' },
+      { field: 'Payment Method Surcharge (AMP)', summaryLabel: 'Payment Method Surcharge (AMP)' },
+      { field: 'AMP Deduction', summaryLabel: 'AMP Deduction' },
     ],
   },
   {

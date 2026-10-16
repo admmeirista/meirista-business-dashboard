@@ -42,6 +42,7 @@ export function UnlockDialog() {
         </label>
         {err && <div className="err-box">{err}</div>}
         <button className={`btn pri full${busy ? ' busy' : ''}`} style={{ marginTop: 16, width: '100%', height: 44 }} disabled={!pw || busy}>Buka data</button>
+        {busy && <div className="muted" style={{ fontSize: 12.5, marginTop: 8, textAlign: 'center' }}>Membuka dan menyimpan data ke perangkat ini… bisa sampai 1 menit, jangan tutup halaman.</div>}
         <button type="button" className="link-btn" style={{ marginTop: 12, display: 'block', marginInline: 'auto' }} onClick={skipBundle}>
           {hasLocal ? 'Nanti saja — pakai data yang sudah ada di perangkat ini' : 'Lewati'}
         </button>
@@ -53,13 +54,13 @@ export function UnlockDialog() {
 
 /** Status data di kaki sidebar. */
 export function DataStatus() {
-  const { bundleAt, checkBundle } = useData();
+  const { bundleAt, checkBundle, syncing } = useData();
   return (
     <div className="me">
       <div className="avatar"><Lock className="ic" style={{ width: 16, height: 16 }} /></div>
       <div>
         <div className="n">{bundleAt ? 'Data terenkripsi' : 'Data lokal'}</div>
-        <div className="r">{bundleAt ? `per ${new Date(bundleAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Tersimpan di browser ini saja'}</div>
+        <div className="r">{syncing ? 'Memuat data terbaru…' : bundleAt ? `per ${new Date(bundleAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Tersimpan di browser ini saja'}</div>
       </div>
       {bundleAt && <button onClick={() => void checkBundle()} title="Periksa data terbaru" aria-label="Periksa data terbaru">↻</button>}
     </div>
