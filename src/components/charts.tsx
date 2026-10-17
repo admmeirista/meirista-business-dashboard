@@ -149,3 +149,73 @@ export function bucketize<T extends { d: string }, V extends Record<string, numb
   }
   return { unit: weekly ? 'mingguan' : 'bulanan', rows: order.map((k) => ({ d: k, ...m.get(k)! })) };
 }
+
+export interface LineSeries { label: string; values: (number | null)[]; color: string; dashed?: boolean }
+
+/**
+ * Grafik garis beberapa seri (mis. tahun ini vs tahun lalu) dengan tooltip.
+ * Nilai null = tidak ada data (garis terputus, bukan nol). `active` menandai titik periode terpilih;
+ * `onPick` membuat titik dapat diklik.
+ */
+export function LineChart({ labels, series, format, height = 240, active, onPick, tipTitle, label }: {
+  labels: string[]; series: LineSeries[]; format: (v: number) => string; height?: number;
+  active?: (i: number) => boolean; onPick?: (i: number) => void; tipTitle?: (i: number) => string; label: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const n = labels.length;
+  const all = series.flatMap((s) => s.values).filter((v): v is number => v !== null);
+  if (!n || !all.length) return <div className="empty">Tidak ada data pada rentang ini.</div>;
+  const W = 760, H = height, L = 50, R = 14, T = 14, B = 28;
+  const minV = Math.min(0, ...all);
+  const maxV = niceMax(Math.max(...all, 0));
+  const lo = minV < 0 ? -niceMax(-minV) : 0;
+  const x = (i: number) => (n === 1 ? (L + W - R) / 2 : L + ((W - L - R) * i) / (n - 1));
+  const y = (v: number) => T + (H - T - B) * (1 - (v - lo) / (maxV - lo || 1));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => lo + (maxV - lo) * t);
+  const step = Math.max(1, Math.ceil(n / 12));
+  const pathOf = (vals: (number | null)[]) => {
+    let d = '', pen = false;
+    vals.forEach((v, i) => { if (v === null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`; pen = true; });
+    return d;
+  };
+  // Area hanya di bawah seri utama, per segmen yang bersambung.
+  const areas: string[] = [];
+  let seg: number[] = [];
+  const main = series[0].values;
+  const flush = () => { if (seg.length > 1) areas.push(`M${x(seg[0])},${y(lo)}` + seg.map((i) => `L${x(i).toFixed(1)},${y(main[i]!).toFixed(1)}`).join('') + `L${x(seg[seg.length - 1])},${y(lo)}Z`); seg = []; };
+  main.forEach((v, i) => (v === null ? flush() : seg.push(i)));
+  flush();
+  const slot = (W - L - R) / Math.max(1, n - 1);
+  const h = hover;
+  const tipV = h === null ? null : series.map((s) => s.values[h]);
+  const chg = tipV && tipV.length > 1 && tipV[0] !== null && tipV[1] ? (tipV[0] - tipV[1]) / Math.abs(tipV[1]) : null;
+  const tipY = h === null ? 0 : Math.min(...series.map((s) => s.values[h]).filter((v): v is number => v !== null).map(y), H - B);
+  return (
+    <div className="chart lchart" role="img" aria-label={label}>
+      <svg viewBox={`0 0 ${W} ${H}`}>
+        <defs><linearGradient id="lcfade" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={series[0].color} stopOpacity=".2" /><stop offset="1" stopColor={series[0].color} stopOpacity="0" /></linearGradient></defs>
+        {ticks.map((t, i) => (<g key={i}><line className="gl" x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text className="ax" x={L - 8} y={y(t) + 4} textAnchor="end">{axisFmt(t)}</text></g>))}
+        {labels.map((l, i) => (i % step === 0 || i === n - 1) && <text key={i} className={`ax${active?.(i) ? ' on' : ''}`} x={x(i)} y={H - 8} textAnchor={n > 1 && i === 0 ? 'start' : n > 1 && i === n - 1 ? 'end' : 'middle'}>{l}</text>)}
+        {areas.map((d, i) => <path key={i} d={d} fill="url(#lcfade)" />)}
+        {[...series].reverse().map((s) => <path key={s.label} d={pathOf(s.values)} fill="none" stroke={s.color} strokeWidth={s.dashed ? 2 : 2.75} strokeDasharray={s.dashed ? '5 5' : undefined} strokeLinejoin="round" strokeLinecap="round" />)}
+        {h !== null && <line className="xh" x1={x(h)} x2={x(h)} y1={T} y2={H - B} />}
+        {main.map((v, i) => v !== null && (active?.(i) || h === i || n <= 24) && (
+          <circle key={i} cx={x(i)} cy={y(v)} r={active?.(i) ? 5.5 : h === i ? 5 : 3.2} fill={active?.(i) || h === i ? series[0].color : '#fff'} stroke={series[0].color} strokeWidth={2} />
+        ))}
+        {h !== null && series.slice(1).map((s) => s.values[h] !== null && <circle key={s.label} cx={x(h)} cy={y(s.values[h]!)} r={4} fill="#fff" stroke={s.color} strokeWidth={2} />)}
+        {labels.map((_, i) => (
+          <rect key={'h' + i} className="hit" style={{ cursor: onPick ? 'pointer' : 'crosshair' }} x={Math.max(L, x(i) - slot / 2)} y={T} width={Math.min(slot, W - R - Math.max(L, x(i) - slot / 2))} height={H - T - B}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={onPick ? () => onPick(i) : undefined} />
+        ))}
+      </svg>
+      {h !== null && tipV && (
+        <div className="ctip" style={{ opacity: 1, left: `${Math.min(88, Math.max(12, (x(h) / W) * 100))}%`, top: `${(tipY / H) * 100}%` }}>
+          <div>{tipTitle ? tipTitle(h) : labels[h]}</div>
+          {series.map((s, k) => <div key={s.label} className="r"><i style={{ background: s.color }} />{s.label}: {tipV[k] === null ? 'tidak ada data' : format(tipV[k]!)}</div>)}
+          {chg !== null && <div className="r" style={{ color: chg >= 0 ? '#8fd3a6' : '#f3a59c' }}>{chg >= 0 ? '▲' : '▼'} {pct(Math.abs(chg))} vs {series[1].label.toLowerCase()}</div>}
+          {onPick && <div className="r" style={{ color: 'var(--sage)', fontWeight: 600 }}>Klik untuk membuka periode ini</div>}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, ArrowDown, ArrowUp, Download, Info as InfoIcon, CheckCircle2, XCircle, CircleHelp } from 'lucide-react';
 
@@ -45,9 +45,19 @@ export function Info({ children }: { children: ReactNode }) {
 }
 
 export function PageHead({ eyebrow, title, actions, children }: { eyebrow: string; title: string; actions?: ReactNode; children?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty('--ph-h', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
     <>
-      <div className="ph">
+      <div className="ph" ref={ref}>
         <div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div>
         {actions && <div className="act">{actions}</div>}
       </div>

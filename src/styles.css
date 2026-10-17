@@ -422,3 +422,53 @@ select.in.full,input.in.full{width:100%}
 .cov-none .cov-l{color:var(--muted);font-weight:600}
 .cov-s{font-size:11.5px;color:var(--muted)}
 .cov-partial .cov-l{color:#8a6312}
+/* ───────── v3: logo, header menempel, kartu proporsional, tata letak ringkasan ───────── */
+.side .logo{margin:0 4px 18px;background:#fef6f4;border-radius:14px;padding:12px 12px 9px;text-align:center}
+.side .logo img{display:block;width:100%;height:auto}
+.side .logo .tag{font-size:8.5px;letter-spacing:.26em;text-transform:uppercase;color:#a0664c;font-weight:800;margin-top:3px}
+.brand .mark-img{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:block}
+/* Header halaman (judul + filter periode) tetap terlihat saat scroll */
+.ph{position:sticky;top:0;z-index:40;background:var(--bg);margin:-30px -34px 18px;padding:22px 34px 14px}
+/* Kartu KPI: lebar & tinggi sama dalam satu baris, delta rata bawah */
+.kpis,.kpis.k4{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-template-columns:none;gap:12px;margin-bottom:16px}
+.kpi{display:flex;flex-direction:column;min-width:0}
+.kpi .s{flex:1;display:flex;flex-direction:column;align-items:flex-start}
+.kpi .s .delta{margin-top:auto;padding-top:8px}
+.kpi .v .kname{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16.5px;font-weight:800;letter-spacing:-.01em;line-height:1.3;min-height:2.6em}
+.panel-h{flex-wrap:wrap}
+.panel-h .act .chips+.chips{margin-left:6px;padding-left:8px;border-left:1px solid var(--line)}
+.chart .ax.on{fill:var(--acc-ink);font-weight:800}
+/* Ringkasan: kiri = KPI (menempel) + grafik; kanan = executive summary (menempel) */
+.ov{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:stretch}
+.ov-left{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ov-left .g2{margin-bottom:0}
+.ov-kpis{position:sticky;top:var(--ph-h,84px);z-index:30;background:var(--bg);margin-bottom:-14px;padding-bottom:14px}
+.ov-kpis .kpis{margin-bottom:0}
+.ov-kpis .kpi{transition:padding .15s}
+.ov-kpis .kpi .v{transition:font-size .15s,margin .15s}
+.ov-kpis.compact .kpi{padding:10px 16px 11px}
+.ov-kpis.compact .kpi .v{font-size:21px;margin-top:6px}
+.ov-kpis.compact .kpi .hint{display:none}
+.ov-kpis.compact .kpi .top .chip{width:24px;height:24px;border-radius:7px}
+.ov-kpis.compact .kpi .s .delta{padding-top:3px;margin-top:0}
+.ov-side{min-width:0}
+.exec3{position:sticky;top:var(--ph-h,84px);max-height:calc(100vh - var(--ph-h,84px) - 16px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px 10px}
+.exec3-h{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.exec3-h .muted{font-size:12px}
+.exec3 .xp{padding:10px 0}
+.exec3-h+.xp{border-top:0}
+@media (max-width:1200px){
+  .ov{display:flex;flex-direction:column}
+  .ov-left{display:contents}
+  .ov-kpis{order:1}.ov-side{order:2}.ov-left>:not(.ov-kpis){order:3}
+  .exec3{position:static;max-height:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:0 22px}
+  .exec3-h{grid-column:1/-1}
+  .exec3-h+.xp{border-top:1px solid var(--line-2)}
+}
+@media (max-width:1100px){.kpis,.kpis.k4{grid-auto-flow:row;grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+  .ph{position:static;margin:0 0 16px;padding:0;background:none}
+  .ov-kpis{position:static;margin-bottom:0;padding-bottom:0}
+}
+@media (max-width:560px){.kpis,.kpis.k4{grid-template-columns:1fr}}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

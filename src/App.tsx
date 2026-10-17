@@ -34,11 +34,15 @@ const DATA_FREE = ['/import', '/settings', '/master'];
 
 function Brand() {
   return (
-    <div className="brand sm">
-      <div className="mark">M</div>
-      <div><div className="word">Meirista</div><div className="tag">Business Intelligence</div></div>
+    <div className="logo">
+      <img src="./logo.webp" alt="Meirista Cosmetics" width={720} height={213} />
+      <div className="tag">Business Intelligence</div>
     </div>
   );
+}
+
+function MobileBrand() {
+  return <div className="brand sm"><img className="mark-img" src="./mark.webp" alt="" width={34} height={34} /><div><div className="word">Meirista</div><div className="tag">Business Intelligence</div></div></div>;
 }
 
 export default function App() {
@@ -51,7 +55,7 @@ export default function App() {
 
   return (
     <div className={`adm${open ? ' open' : ''}`}>
-      <div className="mtop"><button onClick={() => setOpen(true)} aria-label="Menu"><Menu className="ic" /></button><Brand /></div>
+      <div className="mtop"><button onClick={() => setOpen(true)} aria-label="Menu"><Menu className="ic" /></button><MobileBrand /></div>
       <aside className="side">
         <Brand />
         <SideAi topic={TOPIC[loc.pathname] ?? 'overview'} ix={ix} filter={filter} prev={prev} />
