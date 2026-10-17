@@ -2,6 +2,7 @@ import type { BizDb } from './db';
 import type { ImportBatch, ReportKind } from './types';
 import type { KindParse, ParsedUpload, UploadFile } from './pipeline';
 import type { RawRecord, Rejected, TotalCheck } from './parse/common';
+import { invalidateSnapshot } from './snapshot';
 
 const KIND_LABEL: Record<ReportKind, string> = { completed: 'Pesanan Selesai', all: 'Semua Pesanan', returns: 'Pengembalian', income: 'Penghasilan' };
 export const kindLabel = (k: ReportKind) => KIND_LABEL[k];
@@ -69,6 +70,7 @@ async function partWarnings(db: BizDb, kp: KindParse): Promise<string[]> {
 }
 
 export async function commitUpload(db: BizDb, parsed: ParsedUpload): Promise<ImportBatch[]> {
+  await invalidateSnapshot(db);
   const batches: ImportBatch[] = [];
   const kinds = [parsed.completed, parsed.all, parsed.returns, parsed.income].filter(Boolean) as KindParse[];
   for (const kp of kinds) {
@@ -134,6 +136,7 @@ export async function commitUpload(db: BizDb, parsed: ParsedUpload): Promise<Imp
 
 /** Hapus satu batch beserta record yang terakhir ditulis oleh batch tersebut. */
 export async function deleteBatch(db: BizDb, batchId: number) {
+  await invalidateSnapshot(db);
   await db.transaction('rw', db.tables, async () => {
     const orderNos = (await db.orders.where('batchId').equals(batchId).primaryKeys()) as string[];
     await db.items.where('orderNo').anyOf(orderNos).delete();

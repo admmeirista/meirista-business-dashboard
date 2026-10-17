@@ -197,12 +197,12 @@ export function LineChart({ labels, series, format, height = 240, active, onPick
         {ticks.map((t, i) => (<g key={i}><line className="gl" x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text className="ax" x={L - 8} y={y(t) + 4} textAnchor="end">{axisFmt(t)}</text></g>))}
         {labels.map((l, i) => (i % step === 0 || i === n - 1) && <text key={i} className={`ax${active?.(i) ? ' on' : ''}`} x={x(i)} y={H - 8} textAnchor={n > 1 && i === 0 ? 'start' : n > 1 && i === n - 1 ? 'end' : 'middle'}>{l}</text>)}
         {areas.map((d, i) => <path key={i} d={d} fill="url(#lcfade)" />)}
-        {[...series].reverse().map((s) => <path key={s.label} d={pathOf(s.values)} fill="none" stroke={s.color} strokeWidth={s.dashed ? 2 : 2.75} strokeDasharray={s.dashed ? '5 5' : undefined} strokeLinejoin="round" strokeLinecap="round" />)}
+        {[...series].reverse().map((s) => <path key={s.label} d={pathOf(s.values)} fill="none" stroke={s.color} strokeWidth={s.dashed ? 1.75 : 2.25} strokeDasharray={s.dashed ? '5 5' : undefined} strokeLinejoin="round" strokeLinecap="round" />)}
         {h !== null && <line className="xh" x1={x(h)} x2={x(h)} y1={T} y2={H - B} />}
-        {main.map((v, i) => v !== null && (active?.(i) || h === i || n <= 24) && (
-          <circle key={i} cx={x(i)} cy={y(v)} r={active?.(i) ? 5.5 : h === i ? 5 : 3.2} fill={active?.(i) || h === i ? series[0].color : '#fff'} stroke={series[0].color} strokeWidth={2} />
+        {main.map((v, i) => v !== null && (active?.(i) || h === i || n <= 16) && (
+          <circle key={i} cx={x(i)} cy={y(v)} r={h === i ? 3.5 : active?.(i) ? 3.5 : 2.4} fill={active?.(i) || h === i ? series[0].color : '#fff'} stroke={series[0].color} strokeWidth={1.5} />
         ))}
-        {h !== null && series.slice(1).map((s) => s.values[h] !== null && <circle key={s.label} cx={x(h)} cy={y(s.values[h]!)} r={4} fill="#fff" stroke={s.color} strokeWidth={2} />)}
+        {h !== null && series.slice(1).map((s) => s.values[h] !== null && <circle key={s.label} cx={x(h)} cy={y(s.values[h]!)} r={3} fill="#fff" stroke={s.color} strokeWidth={1.5} />)}
         {labels.map((_, i) => (
           <rect key={'h' + i} className="hit" style={{ cursor: onPick ? 'pointer' : 'crosshair' }} x={Math.max(L, x(i) - slot / 2)} y={T} width={Math.min(slot, W - R - Math.max(L, x(i) - slot / 2))} height={H - T - B}
             onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={onPick ? () => onPick(i) : undefined} />

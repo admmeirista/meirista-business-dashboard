@@ -1,5 +1,6 @@
 import type { BizDb } from './db';
 import { AUDIT_TABLES, DATA_TABLES, MASTER_TABLES } from './db';
+import { invalidateSnapshot } from './snapshot';
 
 const ALL_TABLES = [...DATA_TABLES, ...MASTER_TABLES, ...AUDIT_TABLES] as const;
 type TableName = (typeof ALL_TABLES)[number];
@@ -38,6 +39,7 @@ async function readBackup(blob: Blob): Promise<{ tables: Record<string, unknown[
 /** Ganti seluruh isi database lokal dengan isi backup. */
 export async function restoreBackup(db: BizDb, blob: Blob): Promise<BackupMeta> {
   const j = await readBackup(blob);
+  await invalidateSnapshot(db);
   await db.transaction('rw', db.tables, async () => {
     for (const t of ALL_TABLES) {
       const tbl = (db as unknown as Record<TableName, AnyTable>)[t];

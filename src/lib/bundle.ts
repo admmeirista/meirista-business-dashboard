@@ -83,7 +83,8 @@ export function fromColumns(t: { c: string[]; r: unknown[][] }): unknown[] {
 }
 
 /** Enkripsi paket (format v2). Salt boleh dipakai ulang agar kunci yang "diingat" perangkat tetap berlaku; IV selalu baru. */
-export async function encodeBundle(payload: BundlePayload, password: string, salt = b64(rnd(16))): Promise<Uint8Array> {
+/** Isi paket (tanpa enkripsi): gzip([u32 panjang manifest][manifest JSON][segmen kolom per tabel]). Dipakai juga untuk cache lokal. */
+export async function packTables(payload: BundlePayload): Promise<Uint8Array> {
   const segs = Object.entries(payload.tables).map(([table, rows]) => ({ table, data: enc.encode(JSON.stringify(toColumns(rows))) }));
   const manifest: Manifest = { createdAt: payload.createdAt, files: payload.files, counts: payload.counts, segments: segs.map((s) => ({ table: s.table, bytes: s.data.length })) };
   const m = enc.encode(JSON.stringify(manifest));
@@ -92,10 +93,27 @@ export async function encodeBundle(payload: BundlePayload, password: string, sal
   plain.set(m, 4);
   let off = 4 + m.length;
   for (const s of segs) { plain.set(s.data, off); off += s.data.length; }
+  return streamBytes(plain, new CompressionStream('gzip'));
+}
 
+export async function unpackTables(zipped: Uint8Array): Promise<BundlePayload> {
+  const plain = await streamBytes(zipped, new DecompressionStream('gzip'));
+  const dec = new TextDecoder();
+  const mlen = new DataView(plain.buffer, plain.byteOffset, 4).getUint32(0);
+  const manifest = JSON.parse(dec.decode(plain.subarray(4, 4 + mlen))) as Manifest;
+  const tables: Record<string, unknown[]> = {};
+  let off = 4 + mlen;
+  for (const s of manifest.segments) {
+    tables[s.table] = fromColumns(JSON.parse(dec.decode(plain.subarray(off, off + s.bytes))));
+    off += s.bytes;
+  }
+  return { createdAt: manifest.createdAt, files: manifest.files, counts: manifest.counts, tables };
+}
+
+export async function encodeBundle(payload: BundlePayload, password: string, salt = b64(rnd(16))): Promise<Uint8Array> {
   const iv = rnd(12);
   const key = await deriveKey(password, salt);
-  const zipped = await streamBytes(plain, new CompressionStream('gzip'));
+  const zipped = await packTables(payload);
   const cipher = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv: iv as BufferSource }, key, zipped as BufferSource));
   const header: BundleHeader = { v: 2, id: b64(rnd(9)).replace(/[+/=]/g, ''), createdAt: payload.createdAt, kdf: { alg: 'PBKDF2-SHA256', iter: ITERATIONS, salt }, iv: b64(iv) };
   const h = enc.encode(JSON.stringify(header));
@@ -118,18 +136,8 @@ export async function decodeBundle(bytes: Uint8Array, key: CryptoKey): Promise<B
   } catch {
     throw new WrongPasswordError();
   }
-  const plain = await streamBytes(cipherPlain, new DecompressionStream('gzip'));
-  const dec = new TextDecoder();
-  if (header.v === 1) return JSON.parse(dec.decode(plain));
-  const mlen = new DataView(plain.buffer, plain.byteOffset, 4).getUint32(0);
-  const manifest = JSON.parse(dec.decode(plain.subarray(4, 4 + mlen))) as Manifest;
-  const tables: Record<string, unknown[]> = {};
-  let off = 4 + mlen;
-  for (const s of manifest.segments) {
-    tables[s.table] = fromColumns(JSON.parse(dec.decode(plain.subarray(off, off + s.bytes))));
-    off += s.bytes;
-  }
-  return { createdAt: manifest.createdAt, files: manifest.files, counts: manifest.counts, tables };
+  if (header.v === 1) return JSON.parse(new TextDecoder().decode(await streamBytes(cipherPlain, new DecompressionStream('gzip'))));
+  return unpackTables(cipherPlain);
 }
 
 const expandIncome = (rows: unknown[]) => rows.map((r) => {

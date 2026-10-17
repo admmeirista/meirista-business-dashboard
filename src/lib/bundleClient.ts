@@ -1,5 +1,6 @@
 // Memuat paket data terenkripsi dari situs (public/data/bundle.bin) ke database lokal.
 import type { BizDb } from './db';
+import { invalidateSnapshot } from './snapshot';
 import { applyBundle, BUNDLE_PATH, decodeBundle, deriveKey, readHeader, type BundleHeader } from './bundle';
 
 export interface BundleState { header: BundleHeader; bytes: Uint8Array }
@@ -17,6 +18,19 @@ export async function fetchBundle(): Promise<BundleState | null> {
   }
 }
 
+/** Header paket saja (Range request). Bila server mengirim file utuh, isinya ikut dikembalikan. */
+export async function fetchBundleHeader(): Promise<{ header: BundleHeader; full: BundleState | null } | null> {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}${BUNDLE_PATH}`, { cache: 'no-store', headers: { Range: 'bytes=0-8191' } });
+    if (!r.ok) return null;
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    const { header } = readHeader(bytes);
+    return { header, full: r.status === 200 ? { header, bytes } : null };
+  } catch {
+    return null;
+  }
+}
+
 export const loadedBundleId = async (db: BizDb) => (await db.settings.get('bundleId'))?.value as string | undefined;
 export const loadedBundleAt = async (db: BizDb) => (await db.settings.get('bundleAt'))?.value as string | undefined;
 
@@ -28,6 +42,7 @@ async function storedKey(db: BizDb, h: BundleHeader): Promise<CryptoKey | null> 
 async function apply(db: BizDb, b: BundleState, key: CryptoKey) {
   const payload = await decodeBundle(b.bytes, key);
   await applyBundle(db, payload);
+  await invalidateSnapshot(db);
   await db.settings.bulkPut([{ key: 'bundleId', value: b.header.id }, { key: 'bundleAt', value: b.header.createdAt }]);
 }
 

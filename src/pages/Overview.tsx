@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Package, Wallet } from 'lucide-react';
 import { monthRange, useData } from '../data';
@@ -22,21 +22,8 @@ const addMonths = (m: string, k: number) => {
 type Grain = 'month' | 'day';
 type Metric = 'gmv' | 'orders';
 
-/** Kartu KPI menempel di atas saat halaman di-scroll; diringkas setelah melewati bagian atas halaman. */
-function useCompactOnScroll() {
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    const on = () => setCompact((c) => (c ? window.scrollY > 24 : window.scrollY > 96));
-    on();
-    window.addEventListener('scroll', on, { passive: true });
-    return () => window.removeEventListener('scroll', on);
-  }, []);
-  return compact;
-}
-
 export default function Overview() {
   const { ix, filter, prev, monthCounts, setPeriod } = useData();
-  const compact = useCompactOnScroll();
   const [grain, setGrain] = useState<Grain>('month');
   const [metric, setMetric] = useState<Metric>('gmv');
   const m = useMemo(() => {
@@ -53,11 +40,12 @@ export default function Overview() {
     };
   }, [ix, filter, prev]);
 
-  // Tren bulanan: 12 bulan sampai bulan terakhir periode terpilih, dibanding bulan yang sama tahun sebelumnya.
+  // Tren bulanan: hanya bulan di dalam periode terpilih, dibanding bulan-bulan periode pembanding (urut posisi).
   const monthly = useMemo(() => {
-    const end = filter.to.slice(0, 7);
-    const months = Array.from({ length: 12 }, (_, i) => addMonths(end, i - 11));
-    const s = salesSummary(ix, { ...filter, from: `${addMonths(end, -23)}-01` });
+    const span = (from: string, to: string) => { const out: string[] = []; for (let k = from.slice(0, 7); k <= to.slice(0, 7); k = addMonths(k, 1)) out.push(k); return out; };
+    const months = span(filter.from, filter.to);
+    const prevMonths = span(prev.from, prev.to);
+    const s = salesSummary(ix, { ...filter, from: prev.from < filter.from ? prev.from : filter.from, to: prev.to > filter.to ? prev.to : filter.to });
     const agg = new Map<string, { gmv: number; orders: number }>();
     for (const d of s.daily) {
       const k = d.d.slice(0, 7);
@@ -66,14 +54,14 @@ export default function Overview() {
       agg.set(k, e);
     }
     const val = (k: string) => (monthCounts.has(k) ? agg.get(k) ?? { gmv: 0, orders: 0 } : null);
-    return { months, now: months.map(val), ago: months.map((k) => val(addMonths(k, -12))) };
-  }, [ix, filter, monthCounts]);
+    return { months, now: months.map(val), ago: months.map((_, i) => (prevMonths[i] ? val(prevMonths[i]) : null)) };
+  }, [ix, filter, prev, monthCounts]);
 
   const { s, sp, st, stp } = m;
   const fs2 = m.flowSt;
   const fmt = metric === 'gmv' ? rp : (v: number) => `${num(v)} pesanan`;
   const pickV = (x: { gmv: number; orders: number } | null) => (x ? x[metric] : null);
-  const fromM = filter.from.slice(0, 7), toM = filter.to.slice(0, 7);
+  const byMonth = monthly.months.length >= 2 && grain === 'month';
 
   // Alur uang: dari harga produk sampai dana diterima (pesanan yang dananya dilepas pada periode ini).
   const flow = FEE_GROUPS.filter((g) => g.key !== 'voucher' || fs2.groups.find((x) => x.key === g.key)!.total !== 0).map((g) => {
@@ -83,15 +71,14 @@ export default function Overview() {
   }).flat().filter((r) => r.v !== 0);
   const base = flow[0]?.v || 1;
 
-  const chart = grain === 'month' ? (
+  const chart = byMonth ? (
     <LineChart label="Tren bulanan" height={250}
       labels={monthly.months.map((k) => `${MON[Number(k.slice(5, 7)) - 1]} ${k.slice(2, 4)}`)}
       series={[
-        { label: 'Tahun ini', values: monthly.now.map(pickV), color: 'var(--acc)' },
-        { label: 'Tahun lalu', values: monthly.ago.map(pickV), color: '#a9b3ab', dashed: true },
+        { label: periodLabel(filter), values: monthly.now.map(pickV), color: 'var(--acc)' },
+        { label: periodLabel(prev), values: monthly.ago.map(pickV), color: '#a9b3ab', dashed: true },
       ]}
       format={fmt} tipTitle={(i) => monthLabel(monthly.months[i])}
-      active={(i) => monthly.months[i] >= fromM && monthly.months[i] <= toM}
       onPick={(i) => setPeriod(monthRange(monthly.months[i]))} />
   ) : (
     <LineChart label="Tren harian" height={250}
@@ -108,7 +95,7 @@ export default function Overview() {
       <PageHead eyebrow="Performa toko" title="Ringkasan Eksekutif" actions={<FilterBar />} />
       <div className="ov">
         <div className="ov-left">
-          <div className={`ov-kpis${compact ? ' compact' : ''}`}>
+          <div className="ov-kpis">
             <div className="kpis">
               <Kpi dark icon={<ShoppingBag className="ic" />} label="Omzet" value={rpShort(s.gmv)}
                 sub={<>{filter.basis === 'sc' && !hasCancellationData(ix, filter) && ix.ds.orders.length > 0 && <div className="hint">belum termasuk pesanan batal — import Semua Pesanan</div>}<Delta dark now={s.gmv} before={sp.gmv} /></>}
@@ -124,10 +111,10 @@ export default function Overview() {
           </div>
 
           <Panel title={metric === 'gmv' ? 'Tren omzet' : 'Tren pesanan'}
-            sub={grain === 'month' ? '12 bulan terakhir vs tahun lalu · klik titik untuk membuka bulan itu' : `Per hari · ${periodLabel(filter)} vs ${periodLabel(prev)}`}
+            sub={byMonth ? `Per bulan · ${periodLabel(filter)} vs ${periodLabel(prev)} · klik titik untuk membuka bulan itu` : `Per hari · ${periodLabel(filter)} vs ${periodLabel(prev)}`}
             actions={<>
               <Chips value={metric} onChange={setMetric} items={[{ key: 'gmv', label: 'Omzet' }, { key: 'orders', label: 'Pesanan' }]} />
-              <Chips value={grain} onChange={setGrain} items={[{ key: 'month', label: 'Bulanan' }, { key: 'day', label: 'Harian' }]} />
+              {monthly.months.length >= 2 && <Chips value={grain} onChange={setGrain} items={[{ key: 'month', label: 'Bulanan' }, { key: 'day', label: 'Harian' }]} />}
             </>}>
             {chart}
           </Panel>

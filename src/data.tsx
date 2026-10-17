@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { db } from './lib/db';
 import { loadDataset } from './lib/load';
 import { monthsWithData } from './lib/coverage';
-import { fetchBundle, forgetKey, loadedBundleAt, loadedBundleId, tryAutoUnlock, unlockWithPassword, type BundleState } from './lib/bundleClient';
+import { fetchBundle, fetchBundleHeader, forgetKey, loadedBundleAt, loadedBundleId, tryAutoUnlock, unlockWithPassword, type BundleState } from './lib/bundleClient';
 import { buildIndex, emptyDataset, orderDate, type DateBasis, type Filter, type Index } from './lib/metrics/dataset';
 
 export interface Period { from: string; to: string }
@@ -120,9 +120,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
   // Paket data dari folder data-inbox (dipublikasikan terenkripsi). Dimuat otomatis bila perangkat mengingat kuncinya.
   const checkBundle = useCallback(async () => {
-    const b = await fetchBundle();
+    const h = await fetchBundleHeader();
     setBundleAt((await loadedBundleAt(db())) ?? null);
-    if (!b || b.header.id === (await loadedBundleId(db()))) return;
+    if (!h || h.header.id === (await loadedBundleId(db()))) return;
+    const b = h.full ?? await fetchBundle();
+    if (!b) return;
     setSyncing(true);
     const ok = await tryAutoUnlock(db(), b).finally(() => setSyncing(false));
     if (ok) { setBundleAt(b.header.createdAt); await reload(); return; }

@@ -423,10 +423,8 @@ select.in.full,input.in.full{width:100%}
 .cov-s{font-size:11.5px;color:var(--muted)}
 .cov-partial .cov-l{color:#8a6312}
 /* ───────── v3: logo, header menempel, kartu proporsional, tata letak ringkasan ───────── */
-.side .logo{margin:0 4px 18px;background:#fef6f4;border-radius:14px;padding:12px 12px 9px;text-align:center}
-.side .logo img{display:block;width:100%;height:auto}
-.side .logo .tag{font-size:8.5px;letter-spacing:.26em;text-transform:uppercase;color:#a0664c;font-weight:800;margin-top:3px}
-.brand .mark-img{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:block}
+.brand .mark-img{width:44px;height:44px;flex-shrink:0;display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,.25))}
+.brand.sm .mark-img{width:34px;height:34px}
 /* Header halaman (judul + filter periode) tetap terlihat saat scroll */
 .ph{position:sticky;top:0;z-index:40;background:var(--bg);margin:-30px -34px 18px;padding:22px 34px 14px}
 /* Kartu KPI: lebar & tinggi sama dalam satu baris, delta rata bawah */
@@ -442,15 +440,18 @@ select.in.full,input.in.full{width:100%}
 .ov{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:stretch}
 .ov-left{display:flex;flex-direction:column;gap:14px;min-width:0}
 .ov-left .g2{margin-bottom:0}
+/* Kartu KPI di semua halaman menempel di bawah header saat scroll; diringkas setelah halaman di-scroll */
+.main .kpis{position:sticky;top:var(--ph-h,84px);z-index:30;background:var(--bg);padding-bottom:14px;margin-bottom:2px}
 .ov-kpis{position:sticky;top:var(--ph-h,84px);z-index:30;background:var(--bg);margin-bottom:-14px;padding-bottom:14px}
-.ov-kpis .kpis{margin-bottom:0}
-.ov-kpis .kpi{transition:padding .15s}
-.ov-kpis .kpi .v{transition:font-size .15s,margin .15s}
-.ov-kpis.compact .kpi{padding:10px 16px 11px}
-.ov-kpis.compact .kpi .v{font-size:21px;margin-top:6px}
-.ov-kpis.compact .kpi .hint{display:none}
-.ov-kpis.compact .kpi .top .chip{width:24px;height:24px;border-radius:7px}
-.ov-kpis.compact .kpi .s .delta{padding-top:3px;margin-top:0}
+.main .ov-kpis .kpis{position:static;margin-bottom:0;padding-bottom:0}
+.main .kpi{transition:padding .15s}
+.main .kpi .v{transition:font-size .15s,margin .15s}
+.scrolled .main .kpi{padding:10px 16px 11px}
+.scrolled .main .kpi .v{font-size:21px;margin-top:6px}
+.scrolled .main .kpi .v .kname{font-size:14px;min-height:0;-webkit-line-clamp:1}
+.scrolled .main .kpi .hint{display:none}
+.scrolled .main .kpi .top .chip{width:24px;height:24px;border-radius:7px}
+.scrolled .main .kpi .s .delta{padding-top:3px;margin-top:0}
 .ov-side{min-width:0}
 .exec3{position:sticky;top:var(--ph-h,84px);max-height:calc(100vh - var(--ph-h,84px) - 16px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px 10px}
 .exec3-h{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
@@ -468,7 +469,9 @@ select.in.full,input.in.full{width:100%}
 @media (max-width:1100px){.kpis,.kpis.k4{grid-auto-flow:row;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:900px){
   .ph{position:static;margin:0 0 16px;padding:0;background:none}
-  .ov-kpis{position:static;margin-bottom:0;padding-bottom:0}
+  .ov-kpis,.main .kpis{position:static;margin-bottom:0;padding-bottom:0}
+  .main .kpis{margin-bottom:16px}
+  .scrolled .main .kpi{padding:18px 18px 16px}.scrolled .main .kpi .v{font-size:27px;margin-top:16px}.scrolled .main .kpi .hint{display:block}
 }
 @media (max-width:560px){.kpis,.kpis.k4{grid-template-columns:1fr}}
 .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

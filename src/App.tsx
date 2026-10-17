@@ -32,17 +32,24 @@ const NAV = [
 
 const DATA_FREE = ['/import', '/settings', '/master'];
 
-function Brand() {
+function Brand({ sm }: { sm?: boolean }) {
   return (
-    <div className="logo">
-      <img src="./logo.webp" alt="Meirista Cosmetics" width={720} height={213} />
-      <div className="tag">Business Intelligence</div>
+    <div className={`brand${sm ? ' sm' : ''}`}>
+      <img className="mark-img" src="./mark.webp" alt="Meirista" width={44} height={44} />
+      <div><div className="word">Meirista</div><div className="tag">Business Intelligence</div></div>
     </div>
   );
 }
 
-function MobileBrand() {
-  return <div className="brand sm"><img className="mark-img" src="./mark.webp" alt="" width={34} height={34} /><div><div className="word">Meirista</div><div className="tag">Business Intelligence</div></div></div>;
+/** Tandai halaman sudah di-scroll (dengan jeda agar tidak berkedip): kartu KPI yang menempel dibuat ringkas. */
+function useScrolledFlag() {
+  useEffect(() => {
+    const el = document.documentElement;
+    const on = () => el.classList.toggle('scrolled', el.classList.contains('scrolled') ? window.scrollY > 24 : window.scrollY > 96);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
 }
 
 export default function App() {
@@ -50,12 +57,13 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [loc.pathname]);
+  useScrolledFlag();
   const badChecks = ix.ds.checks.filter((c) => c.ok === false).length;
   const empty = ready && !ix.ds.orders.length && !ix.ds.income.length && !ix.ds.returns.length;
 
   return (
     <div className={`adm${open ? ' open' : ''}`}>
-      <div className="mtop"><button onClick={() => setOpen(true)} aria-label="Menu"><Menu className="ic" /></button><MobileBrand /></div>
+      <div className="mtop"><button onClick={() => setOpen(true)} aria-label="Menu"><Menu className="ic" /></button><Brand sm /></div>
       <aside className="side">
         <Brand />
         <SideAi topic={TOPIC[loc.pathname] ?? 'overview'} ix={ix} filter={filter} prev={prev} />
@@ -109,7 +117,6 @@ function SideAi({ topic, ix, filter, prev }: { topic: AiTopic } & Pick<ReturnTyp
       <AiButton className="btn side-ai-btn" label="Analisis dengan AI" cacheKey={`${topic}|${filter.from}|${filter.to}|${prev.from}`}
         title={`Analisis AI ${TOPIC_LABEL[topic]} — ${periodLabel(filter)}`} task={AI_TASK[topic]} suggestions={AI_SUGGEST[topic]}
         build={() => aiPayload(ix, filter, prev, periodLabel(filter), periodLabel(prev), topic)} />
-      <div className="side-ai-sub">{TOPIC_LABEL[topic]} · {periodLabel(filter)}</div>
     </div>
   );
 }
